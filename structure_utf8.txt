@@ -1,0 +1,266 @@
+├── .env.local
+├── .gitignore
+├── AGENTS.md
+├── CLAUDE.md
+├── eslint.config.mjs
+├── next-env.d.ts
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── postcss.config.mjs
+├── public
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── vercel.svg
+│   └── window.svg
+├── README.md
+├── src
+│   ├── app
+│   │   ├── (external)
+│   │   │   └── page.tsx
+│   │   ├── (main)
+│   │   │   ├── auth
+│   │   │   │   ├── v1
+│   │   │   │   │   ├── login
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── register
+│   │   │   │   │       └── page.tsx
+│   │   │   │   ├── v2
+│   │   │   │   │   ├── layout.tsx
+│   │   │   │   │   ├── login
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── register
+│   │   │   │   │       └── page.tsx
+│   │   │   │   └── _components
+│   │   │   │       ├── login-form.tsx
+│   │   │   │       ├── register-form.tsx
+│   │   │   │       └── social-auth
+│   │   │   │           └── google-button.tsx
+│   │   │   ├── dashboard
+│   │   │   │   ├── (legacy)
+│   │   │   │   │   ├── analytics-v1
+│   │   │   │   │   │   ├── page.tsx
+│   │   │   │   │   │   └── _components
+│   │   │   │   │   │       ├── analytics-actions-manager-queue.tsx
+│   │   │   │   │   │       ├── analytics-actions-risk-ledger.tsx
+│   │   │   │   │   │       ├── analytics-drivers-coverage-triage.tsx
+│   │   │   │   │   │       ├── analytics-drivers-forecast-target.tsx
+│   │   │   │   │   │       └── analytics-overview.tsx
+│   │   │   │   │   ├── crm-v1
+│   │   │   │   │   │   ├── page.tsx
+│   │   │   │   │   │   └── _components
+│   │   │   │   │   │       ├── crm.config.ts
+│   │   │   │   │   │       ├── insight-cards.tsx
+│   │   │   │   │   │       ├── operational-cards.tsx
+│   │   │   │   │   │       ├── overview-cards.tsx
+│   │   │   │   │   │       └── recent-leads-table
+│   │   │   │   │   │           ├── columns.tsx
+│   │   │   │   │   │           ├── schema.ts
+│   │   │   │   │   │           └── table.tsx
+│   │   │   │   │   ├── default-v1
+│   │   │   │   │   │   ├── page.tsx
+│   │   │   │   │   │   └── _components
+│   │   │   │   │   │       ├── chart-area-interactive.tsx
+│   │   │   │   │   │       ├── data.json
+│   │   │   │   │   │       ├── proposal-sections-table
+│   │   │   │   │   │       │   ├── columns.tsx
+│   │   │   │   │   │       │   ├── schema.ts
+│   │   │   │   │   │       │   └── table.tsx
+│   │   │   │   │   │       └── section-cards.tsx
+│   │   │   │   │   └── finance-v1
+│   │   │   │   │       ├── page.tsx
+│   │   │   │   │       └── _components
+│   │   │   │   │           ├── card-overview.tsx
+│   │   │   │   │           ├── cash-flow-overview.tsx
+│   │   │   │   │           ├── income-reliability.tsx
+│   │   │   │   │           ├── kpis
+│   │   │   │   │           │   ├── monthly-cash-flow.tsx
+│   │   │   │   │           │   ├── net-worth.tsx
+│   │   │   │   │           │   ├── primary-account.tsx
+│   │   │   │   │           │   └── savings-rate.tsx
+│   │   │   │   │           └── spending-breakdown.tsx
+│   │   │   │   ├── analytics
+│   │   │   │   │   ├── page.tsx
+│   │   │   │   │   └── _components
+│   │   │   │   │       ├── analytics-kpi-strip.tsx
+│   │   │   │   │       ├── analytics-toolbar.tsx
+│   │   │   │   │       ├── realtime-visitors.tsx
+│   │   │   │   │       ├── top-pages.tsx
+│   │   │   │   │       ├── top-traffic-sources.tsx
+│   │   │   │   │       └── traffic-quality.tsx
+│   │   │   │   ├── coming-soon
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── crm
+│   │   │   │   │   ├── page.tsx
+│   │   │   │   │   └── _components
+│   │   │   │   │       ├── kpi-cards.tsx
+│   │   │   │   │       ├── opportunities-section.tsx
+│   │   │   │   │       ├── opportunities-table
+│   │   │   │   │       │   ├── columns.tsx
+│   │   │   │   │       │   ├── data.json
+│   │   │   │   │       │   └── schema.ts
+│   │   │   │   │       ├── pipeline-activity.tsx
+│   │   │   │   │       └── task-reminders.tsx
+│   │   │   │   ├── default
+│   │   │   │   │   ├── page.tsx
+│   │   │   │   │   └── _components
+│   │   │   │   │       ├── data.json
+│   │   │   │   │       ├── metric-cards.tsx
+│   │   │   │   │       ├── performance-overview.tsx
+│   │   │   │   │       ├── recent-customers-table
+│   │   │   │   │       │   ├── columns.tsx
+│   │   │   │   │       │   ├── schema.ts
+│   │   │   │   │       │   └── table.tsx
+│   │   │   │   │       └── subscriber-overview.tsx
+│   │   │   │   ├── finance
+│   │   │   │   │   ├── page.tsx
+│   │   │   │   │   └── _components
+│   │   │   │   │       ├── balance-distribution-card.tsx
+│   │   │   │   │       ├── finance-notification.tsx
+│   │   │   │   │       ├── income-breakdown.tsx
+│   │   │   │   │       ├── overview-kpis.tsx
+│   │   │   │   │       ├── quick-actions.tsx
+│   │   │   │   │       ├── transactions-overview-card.tsx
+│   │   │   │   │       ├── upcoming-transactions.tsx
+│   │   │   │   │       └── wallet.tsx
+│   │   │   │   ├── layout.tsx
+│   │   │   │   ├── page.tsx
+│   │   │   │   ├── productivity
+│   │   │   │   │   ├── page.tsx
+│   │   │   │   │   └── _components
+│   │   │   │   │       ├── calendar-panel.tsx
+│   │   │   │   │       ├── focus-card.tsx
+│   │   │   │   │       ├── projects-section.tsx
+│   │   │   │   │       ├── quick-actions.tsx
+│   │   │   │   │       ├── quote-card.tsx
+│   │   │   │   │       ├── recent-notes-card.tsx
+│   │   │   │   │       ├── summary-cards.tsx
+│   │   │   │   │       ├── tasks-section.tsx
+│   │   │   │   │       └── weekly-summary-card.tsx
+│   │   │   │   ├── [...not-found]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── _components
+│   │   │   │       └── sidebar
+│   │   │   │           ├── account-switcher.tsx
+│   │   │   │           ├── app-sidebar.tsx
+│   │   │   │           ├── layout-controls.tsx
+│   │   │   │           ├── nav-documents.tsx
+│   │   │   │           ├── nav-main.tsx
+│   │   │   │           ├── nav-secondary.tsx
+│   │   │   │           ├── nav-user.tsx
+│   │   │   │           ├── search-dialog.tsx
+│   │   │   │           ├── sidebar-support-card.tsx
+│   │   │   │           └── theme-switcher.tsx
+│   │   │   └── unauthorized
+│   │   │       └── page.tsx
+│   │   ├── api
+│   │   │   └── auth
+│   │   │       └── [...nextauth]
+│   │   │           └── route.ts
+│   │   ├── favicon.ico
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── not-found.tsx
+│   ├── components
+│   │   ├── date-range-picker.tsx
+│   │   ├── simple-icon.tsx
+│   │   └── ui
+│   │       ├── accordion.tsx
+│   │       ├── alert-dialog.tsx
+│   │       ├── alert.tsx
+│   │       ├── aspect-ratio.tsx
+│   │       ├── avatar.tsx
+│   │       ├── badge.tsx
+│   │       ├── breadcrumb.tsx
+│   │       ├── button-group.tsx
+│   │       ├── button.tsx
+│   │       ├── calendar.tsx
+│   │       ├── card.tsx
+│   │       ├── carousel.tsx
+│   │       ├── chart.tsx
+│   │       ├── checkbox.tsx
+│   │       ├── collapsible.tsx
+│   │       ├── combobox.tsx
+│   │       ├── command.tsx
+│   │       ├── context-menu.tsx
+│   │       ├── dialog.tsx
+│   │       ├── direction.tsx
+│   │       ├── drawer.tsx
+│   │       ├── dropdown-menu.tsx
+│   │       ├── empty.tsx
+│   │       ├── field.tsx
+│   │       ├── hover-card.tsx
+│   │       ├── input-group.tsx
+│   │       ├── input-otp.tsx
+│   │       ├── input.tsx
+│   │       ├── item.tsx
+│   │       ├── kbd.tsx
+│   │       ├── label.tsx
+│   │       ├── menubar.tsx
+│   │       ├── native-select.tsx
+│   │       ├── navigation-menu.tsx
+│   │       ├── pagination.tsx
+│   │       ├── popover.tsx
+│   │       ├── progress.tsx
+│   │       ├── radio-group.tsx
+│   │       ├── resizable.tsx
+│   │       ├── scroll-area.tsx
+│   │       ├── select.tsx
+│   │       ├── separator.tsx
+│   │       ├── sheet.tsx
+│   │       ├── sidebar.tsx
+│   │       ├── skeleton.tsx
+│   │       ├── slider.tsx
+│   │       ├── sonner.tsx
+│   │       ├── spinner.tsx
+│   │       ├── switch.tsx
+│   │       ├── table.tsx
+│   │       ├── tabs.tsx
+│   │       ├── textarea.tsx
+│   │       ├── toggle-group.tsx
+│   │       ├── toggle.tsx
+│   │       └── tooltip.tsx
+│   ├── config
+│   │   └── app-config.ts
+│   ├── data
+│   │   └── users.ts
+│   ├── hooks
+│   │   └── use-mobile.ts
+│   ├── lib
+│   │   ├── cookie.client.ts
+│   │   ├── db.ts
+│   │   ├── fonts
+│   │   │   └── registry.ts
+│   │   ├── local-storage.client.ts
+│   │   ├── preferences
+│   │   │   ├── layout-utils.ts
+│   │   │   ├── layout.ts
+│   │   │   ├── preferences-config.ts
+│   │   │   ├── preferences-storage.ts
+│   │   │   ├── theme-utils.ts
+│   │   │   └── theme.ts
+│   │   └── utils.ts
+│   ├── middleware.ts
+│   ├── navigation
+│   │   └── sidebar
+│   │       └── sidebar-items.ts
+│   ├── scripts
+│   │   ├── generate-theme-presets.ts
+│   │   └── theme-boot.tsx
+│   ├── server
+│   │   └── server-actions.ts
+│   ├── stores
+│   │   └── preferences
+│   │       ├── preferences-provider.tsx
+│   │       └── preferences-store.ts
+│   ├── styles
+│   │   ├── flag-icons
+│   │   │   └── flags.css
+│   │   └── presets
+│   │       ├── brutalist.css
+│   │       ├── soft-pop.css
+│   │       └── tangerine.css
+│   └── types
+│       └── next-auth.d.ts
+└── tsconfig.json
