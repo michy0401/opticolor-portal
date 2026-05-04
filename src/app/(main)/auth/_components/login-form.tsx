@@ -49,7 +49,7 @@ export function LoginForm() {
         toast.success("¡Bienvenido!", {
           description: "Inicio de sesión exitoso.",
         });
-        router.push("/");
+        router.push("/dashboard/resumen-comercial");
         router.refresh();
       }
     } catch (error) {
