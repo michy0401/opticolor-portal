@@ -98,7 +98,6 @@ export default async function PerfilPage() {
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Información Personal</CardTitle>
-            <CardDescription>Detalles de tu cuenta en la plataforma.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-6 md:flex-row">
             <Avatar className="h-24 w-24 border-2 border-primary/20">
@@ -158,13 +157,6 @@ export default async function PerfilPage() {
             <CardDescription>Ubicaciones a las que tienes acceso.</CardDescription>
           </CardHeader>
           <CardContent>
-            {isSupervisor && (
-              <div className="mb-4 flex items-start gap-2 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
-                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                <p>Acceso limitado a reportes; sin permisos de edición en Usuarios o Sucursales.</p>
-              </div>
-            )}
-
             <div className="flex flex-wrap gap-2">
               {sucursales.length > 0 ? (
                 sucursales.map((s, idx) => (
@@ -173,7 +165,10 @@ export default async function PerfilPage() {
                   </Badge>
                 ))
               ) : (
-                <p className="italic text-muted-foreground text-sm">Sin sucursales asignadas.</p>
+                <div className="flex w-full flex-col items-center justify-center p-6 text-center text-muted-foreground">
+                  <MapPin className="mb-2 h-8 w-8 opacity-20" />
+                  <p className="text-sm">Sin sucursales asignadas.</p>
+                </div>
               )}
             </div>
           </CardContent>

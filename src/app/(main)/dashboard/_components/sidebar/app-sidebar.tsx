@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { useSession } from "next-auth/react";
 import { useShallow } from "zustand/react/shallow";
 
 import {
@@ -29,6 +30,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     })),
   );
 
+  const { data: session } = useSession();
+  const isSupervisor = session?.user?.nivel === 4 || session?.user?.rol === "SUPERVISOR";
+
+  const filteredSidebarItems = sidebarItems.filter(group => {
+    if (isSupervisor && group.label === "Configuración") {
+      return false;
+    }
+    return true;
+  });
+
   const variant = isSynced ? sidebarVariant : props.variant;
   const collapsible = isSynced ? sidebarCollapsible : props.collapsible;
 
@@ -47,7 +58,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={sidebarItems} />
+        <NavMain items={filteredSidebarItems} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser />

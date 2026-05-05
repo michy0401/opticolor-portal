@@ -1,4 +1,5 @@
 import { getConnection } from "@/lib/db";
+import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -87,6 +88,45 @@ export const authOptions: NextAuthOptions = {
         session.user.nivel = token.nivel as number;
       }
       return session;
+    },
+  },
+  events: {
+    async signIn({ user }) {
+      try {
+        const pool = await getConnection();
+        
+        // Acción A: Actualización de Usuario
+        await pool.request()
+          .input("id_usuario", user.id)
+          .query(`
+            UPDATE dbo.Seguridad_Usuarios 
+            SET ultima_sesion = GETDATE() 
+            WHERE id_usuario = @id_usuario
+          `);
+
+        // Obtener IP
+        const headersList = headers();
+        const ip = headersList.get("x-forwarded-for") || headersList.get("x-real-ip") || "Desconocida";
+
+        // Acción B: Inserción en Auditoría
+        await pool.request()
+          .input("id_usuario", user.id)
+          .input("email_usuario", user.email)
+          .input("accion", "LOGIN")
+          .input("tabla_afectada", "Seguridad_Usuarios")
+          .input("registro_id", user.id)
+          .input("resultado", "EXITOSO")
+          .input("ip_origen", ip)
+          .query(`
+            INSERT INTO dbo.Seguridad_Auditoria (
+              id_usuario, email_usuario, accion, tabla_afectada, registro_id, resultado, ip_origen, fecha_accion
+            ) VALUES (
+              @id_usuario, @email_usuario, @accion, @tabla_afectada, @registro_id, @resultado, @ip_origen, GETDATE()
+            )
+          `);
+      } catch (error) {
+        console.error("Error en evento signIn de auditoría:", error);
+      }
     },
   },
 };
