@@ -27,6 +27,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { PasswordChecklist } from "@/components/password-checklist";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 const baseSchema = z.object({
@@ -37,16 +38,27 @@ const baseSchema = z.object({
 });
 
 const createSchema = baseSchema.extend({
-  id_rol: z.string().min(1, "Selecciona un rol."),       // obligatorio al crear
-  password: z.string().min(8, "Mínimo 8 caracteres."),
-  confirm_password: z.string().min(8, "Confirma la contraseña."),
+  id_rol: z.string().min(1, "Selecciona un rol."),
+  password: z.string()
+    .min(8, "Mínimo 8 caracteres.")
+    .regex(/[A-Z]/, "Debe contener al menos una letra mayúscula.")
+    .regex(/[a-z]/, "Debe contener al menos una letra minúscula.")
+    .regex(/[0-9]/, "Debe contener al menos un número.")
+    .regex(/[^A-Za-z0-9]/, "Debe contener al menos un carácter especial (!@#$%^&*…)."),
+  confirm_password: z.string().min(1, "Confirma la contraseña."),
 }).refine((d) => d.password === d.confirm_password, {
   message: "Las contraseñas no coinciden.",
   path: ["confirm_password"],
 });
 
 const editSchema = baseSchema.extend({
-  password: z.string().optional(),
+  password: z.string()
+    .refine((v) => !v || v.length >= 8,           "Mínimo 8 caracteres.")
+    .refine((v) => !v || /[A-Z]/.test(v),         "Debe contener al menos una letra mayúscula.")
+    .refine((v) => !v || /[a-z]/.test(v),         "Debe contener al menos una letra minúscula.")
+    .refine((v) => !v || /[0-9]/.test(v),         "Debe contener al menos un número.")
+    .refine((v) => !v || /[^A-Za-z0-9]/.test(v), "Debe contener al menos un carácter especial (!@#$%^&*…).")
+    .optional(),
   confirm_password: z.string().optional(),
 }).refine((d) => !d.password || d.password === d.confirm_password, {
   message: "Las contraseñas no coinciden.",
@@ -299,6 +311,7 @@ export function UsuarioFormModal({ open, onOpenChange, usuario, roles, sucursale
     control,
     reset,
     setError,
+    watch,
     formState: { errors },
   } = useForm<AnyForm>({
     resolver: zodResolver(isEdit ? editSchema : (createSchema as any)),
@@ -385,6 +398,8 @@ export function UsuarioFormModal({ open, onOpenChange, usuario, roles, sucursale
     });
   }
 
+  const passwordValue = (watch("password") as string) ?? "";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
@@ -448,7 +463,7 @@ export function UsuarioFormModal({ open, onOpenChange, usuario, roles, sucursale
                 >
                   <Input
                     type="password"
-                    placeholder={isEdit ? "Dejar vacío para no cambiar" : "Mínimo 8 caracteres"}
+                    placeholder={isEdit ? "Dejar vacío para no cambiar" : "Mín. 8 caracteres"}
                     {...register("password")}
                   />
                 </FieldWrapper>
@@ -459,6 +474,17 @@ export function UsuarioFormModal({ open, onOpenChange, usuario, roles, sucursale
                   <Input type="password" placeholder="Repetir contraseña" {...register("confirm_password")} />
                 </FieldWrapper>
               </div>
+
+              {/* Checklist de política de contraseña */}
+              {passwordValue ? (
+                <PasswordChecklist password={passwordValue} />
+              ) : (
+                <p className="text-xs text-muted-foreground -mt-1">
+                  {isEdit
+                    ? "Deja vacío para no cambiarla. Si escribes algo, debe cumplir la política de seguridad."
+                    : "Debe tener mayúscula, minúscula, número y símbolo especial (!@#$%…)."}
+                </p>
+              )}
 
               {/* Rol — deshabilitado si el usuario se está editando a sí mismo */}
               {!esAutoEdicion && (

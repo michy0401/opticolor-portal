@@ -10,7 +10,12 @@ import { z } from "zod";
 const crearUsuarioSchema = z.object({
   nombre_completo: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
   email: z.string().email("El correo no es válido."),
-  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres."),
+  password: z.string()
+    .min(8, "Mínimo 8 caracteres.")
+    .regex(/[A-Z]/, "Debe contener al menos una letra mayúscula.")
+    .regex(/[a-z]/, "Debe contener al menos una letra minúscula.")
+    .regex(/[0-9]/, "Debe contener al menos un número.")
+    .regex(/[^A-Za-z0-9]/, "Debe contener al menos un carácter especial (!@#$%^&*…)."),
   id_rol: z.number({ error: "Selecciona un rol." }),
   ids_sucursales: z.array(z.number()).optional().default([]),
 });
@@ -26,6 +31,11 @@ export async function crearUsuario(input: unknown): Promise<{
   if (!session?.user || (session.user.nivel ?? 99) > 2) {
     return { success: false, error: "Sin permisos para realizar esta acción." };
   }
+  if (!session.user.email) {
+    return { success: false, error: "No autorizado: la sesión no contiene email de administrador." };
+  }
+
+  const emailAdmin = session.user.email;
 
   const parsed = crearUsuarioSchema.safeParse(input);
   if (!parsed.success) {
@@ -57,10 +67,12 @@ export async function crearUsuario(input: unknown): Promise<{
       .input("nombre_completo", nombre_completo)
       .input("email", email)
       .input("password_hash", password_hash)
+      .input("email_admin", emailAdmin)
       .query(`
-        INSERT INTO dbo.Seguridad_Usuarios (nombre_completo, email, password_hash, esta_activo)
+        INSERT INTO dbo.Seguridad_Usuarios
+          (nombre_completo, email, password_hash, esta_activo, fecha_creacion, usuario_creacion)
         OUTPUT INSERTED.id_usuario
-        VALUES (@nombre_completo, @email, @password_hash, 1)
+        VALUES (@nombre_completo, @email, @password_hash, 1, GETDATE(), @email_admin)
       `);
 
     const id_nuevo = insertResult.recordset[0].id_usuario;

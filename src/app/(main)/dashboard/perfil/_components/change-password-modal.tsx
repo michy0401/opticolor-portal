@@ -18,15 +18,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordChecklist } from "@/components/password-checklist";
 import { changePassword, verifyCurrentPassword } from "../_actions/change-password";
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "La contraseña actual es requerida."),
   newPassword: z.string()
     .min(8, "Mínimo 8 caracteres.")
-    .regex(/[A-Za-z]/, "Debe contener al menos una letra.")
+    .regex(/[A-Z]/, "Debe contener al menos una letra mayúscula.")
+    .regex(/[a-z]/, "Debe contener al menos una letra minúscula.")
     .regex(/[0-9]/, "Debe contener al menos un número.")
-    .regex(/[^A-Za-z0-9]/, "Debe contener al menos un carácter especial."),
+    .regex(/[^A-Za-z0-9]/, "Debe contener al menos un carácter especial (!@#$%^&*…)."),
   confirmPassword: z.string()
 }).refine((data) => data.newPassword === data.confirmPassword, {
   message: "Las contraseñas no coinciden.",
@@ -46,6 +48,7 @@ export function ChangePasswordModal() {
     reset,
     trigger,
     getValues,
+    watch,
     formState: { errors },
   } = useForm<ChangePasswordFormValues>({
     resolver: zodResolver(changePasswordSchema),
@@ -114,6 +117,8 @@ export function ChangePasswordModal() {
     }
   };
 
+  const newPasswordValue = watch("newPassword") ?? "";
+
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen && isLoading) return; // Prevent closing while loading
     setOpen(newOpen);
@@ -168,8 +173,15 @@ export function ChangePasswordModal() {
                   {...register("newPassword")}
                   disabled={isLoading}
                 />
-                {errors.newPassword && (
+                {errors.newPassword ? (
                   <p className="text-sm text-destructive">{errors.newPassword.message}</p>
+                ) : (
+                  <PasswordChecklist password={newPasswordValue} />
+                )}
+                {!newPasswordValue && (
+                  <p className="text-xs text-muted-foreground">
+                    Debe tener mayúscula, minúscula, número y símbolo especial.
+                  </p>
                 )}
               </div>
 

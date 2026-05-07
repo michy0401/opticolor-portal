@@ -11,7 +11,13 @@ const editarUsuarioSchema = z.object({
   id_usuario: z.number(),
   nombre_completo: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
   email: z.string().email("El correo no es válido."),
-  password: z.string().optional(),
+  password: z.string()
+    .refine((v) => !v || v.length >= 8,           "Mínimo 8 caracteres.")
+    .refine((v) => !v || /[A-Z]/.test(v),         "Debe contener al menos una letra mayúscula.")
+    .refine((v) => !v || /[a-z]/.test(v),         "Debe contener al menos una letra minúscula.")
+    .refine((v) => !v || /[0-9]/.test(v),         "Debe contener al menos un número.")
+    .refine((v) => !v || /[^A-Za-z0-9]/.test(v), "Debe contener al menos un carácter especial (!@#$%^&*…).")
+    .optional(),
   id_rol: z.number({ error: "Selecciona un rol." }),
   ids_sucursales: z.array(z.number()).optional().default([]),
 });
@@ -27,6 +33,11 @@ export async function editarUsuario(input: unknown): Promise<{
   if (!session?.user || (session.user.nivel ?? 99) > 2) {
     return { success: false, error: "Sin permisos para realizar esta acción." };
   }
+  if (!session.user.email) {
+    return { success: false, error: "No autorizado: la sesión no contiene email de administrador." };
+  }
+
+  const emailAdmin = session.user.email;
 
   const parsed = editarUsuarioSchema.safeParse(input);
   if (!parsed.success) {
@@ -63,7 +74,7 @@ export async function editarUsuario(input: unknown): Promise<{
     const valoresAnteriores = JSON.stringify(anterior ?? {});
 
     // UPDATE usuario (con o sin password)
-    if (password && password.trim().length >= 8) {
+    if (password) {
       const password_hash = await bcrypt.hash(password, 12);
       await pool
         .request()
@@ -71,11 +82,14 @@ export async function editarUsuario(input: unknown): Promise<{
         .input("nombre_completo", nombre_completo)
         .input("email", email)
         .input("password_hash", password_hash)
+        .input("email_admin", emailAdmin)
         .query(`
           UPDATE dbo.Seguridad_Usuarios
           SET nombre_completo = @nombre_completo,
               email = @email,
-              password_hash = @password_hash
+              password_hash = @password_hash,
+              fecha_modificacion = GETDATE(),
+              usuario_modificacion = @email_admin
           WHERE id_usuario = @id_usuario
         `);
     } else {
@@ -84,10 +98,13 @@ export async function editarUsuario(input: unknown): Promise<{
         .input("id_usuario", id_usuario)
         .input("nombre_completo", nombre_completo)
         .input("email", email)
+        .input("email_admin", emailAdmin)
         .query(`
           UPDATE dbo.Seguridad_Usuarios
           SET nombre_completo = @nombre_completo,
-              email = @email
+              email = @email,
+              fecha_modificacion = GETDATE(),
+              usuario_modificacion = @email_admin
           WHERE id_usuario = @id_usuario
         `);
     }

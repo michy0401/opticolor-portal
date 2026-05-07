@@ -13,10 +13,15 @@ export async function cambiarRol(
   if (!session?.user || (session.user.nivel ?? 99) > 2) {
     return { success: false, error: "Sin permisos para realizar esta acción." };
   }
+  if (!session.user.email) {
+    return { success: false, error: "No autorizado: la sesión no contiene email de administrador." };
+  }
   // Guardia de auto-modificación: nadie puede cambiar su propio rol
   if (Number(session.user.id) === idUsuario) {
     return { success: false, error: "No puedes cambiar tu propio rol de acceso." };
   }
+
+  const emailAdmin = session.user.email;
 
   try {
     const pool = await getConnection();
@@ -67,6 +72,18 @@ export async function cambiarRol(
       .query(`
         INSERT INTO dbo.Seguridad_Usuarios_Roles (id_usuario, id_rol, esta_vigente)
         VALUES (@id_usuario, @id_rol, 1)
+      `);
+
+    // Estampar auditoría en la ficha del usuario
+    await pool
+      .request()
+      .input("id_usuario", idUsuario)
+      .input("email_admin", emailAdmin)
+      .query(`
+        UPDATE dbo.Seguridad_Usuarios
+        SET fecha_modificacion = GETDATE(),
+            usuario_modificacion = @email_admin
+        WHERE id_usuario = @id_usuario
       `);
 
     // Obtener nombre nuevo rol para auditoría

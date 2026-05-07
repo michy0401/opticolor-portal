@@ -366,6 +366,29 @@ export function UsuarioDetalleClient({ usuario, roles, todasSucursales, currentU
                       : "N/A"}
                   </span>
                 </div>
+                <div className="flex flex-col gap-1">
+                  <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    <Clock className="h-3 w-3" /> Creado por
+                  </span>
+                  <span className="truncate" title={data.usuario_creacion ?? undefined}>
+                    {data.usuario_creacion ?? "N/A"}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    <Clock className="h-3 w-3" /> Última modificación
+                  </span>
+                  <span>
+                    {data.fecha_modificacion
+                      ? format(new Date(data.fecha_modificacion), "dd 'de' MMMM, yyyy", { locale: es })
+                      : "Sin modificaciones"}
+                  </span>
+                  {data.usuario_modificacion && (
+                    <span className="text-xs text-muted-foreground truncate" title={data.usuario_modificacion}>
+                      por {data.usuario_modificacion}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <Separator />

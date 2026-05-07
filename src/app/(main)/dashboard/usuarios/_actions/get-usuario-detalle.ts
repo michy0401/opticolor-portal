@@ -26,6 +26,9 @@ export type UsuarioDetalle = {
   esta_activo: boolean;
   ultima_sesion: Date | null;
   fecha_creacion: Date | null;
+  fecha_modificacion: Date | null;
+  usuario_creacion: string | null;
+  usuario_modificacion: string | null;
   id_rol: number | null;
   nombre_rol: string | null;
   nivel_jerarquico: number | null;
@@ -53,6 +56,9 @@ export async function getUsuarioDetalle(idUsuario: number): Promise<{
           u.esta_activo,
           u.ultima_sesion,
           u.fecha_creacion,
+          u.fecha_modificacion,
+          u.usuario_creacion,
+          u.usuario_modificacion,
           r.id_rol,
           r.nombre_rol,
           r.nivel_jerarquico
