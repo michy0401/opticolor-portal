@@ -3,7 +3,6 @@
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
-import { SearchDialog } from "../sidebar/search-dialog";
 import { ReportFilters } from "./report-filters";
 import type { MiSucursal } from "../../_actions/get-mis-sucursales";
 
@@ -47,8 +46,7 @@ export function DashboardHeader({ sucursales }: Props) {
         "[html[data-navbar-style=sticky]_&]:backdrop-blur-md",
       )}
     >
-      <div className="flex w-full items-center justify-between px-4 lg:px-6">
-        <SearchDialog />
+      <div className="flex w-full items-center justify-end px-4 lg:px-6">
         <ReportFilters sucursales={sucursales} />
       </div>
     </header>

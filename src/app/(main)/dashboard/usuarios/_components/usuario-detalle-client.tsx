@@ -48,18 +48,18 @@ function getInitials(name: string) {
 }
 
 function nivelColor(nivel: number | null) {
-  if (nivel === 1) return "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30";
-  if (nivel === 2) return "bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/30";
-  return "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30";
+  if (nivel === 1) return "bg-primary/15 text-primary border-primary/30";
+  if (nivel === 2) return "bg-secondary/20 text-secondary-foreground border-secondary/50";
+  return "bg-muted text-muted-foreground border-border";
 }
 
 function accionColor(accion: string) {
-  if (accion.includes("CREAR") || accion.includes("ASIGNAR")) return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
-  if (accion.includes("EDITAR") || accion.includes("CAMBIAR")) return "bg-blue-500/15 text-blue-600 border-blue-500/30";
+  if (accion.includes("CREAR") || accion.includes("ASIGNAR")) return "bg-primary/15 text-primary border-primary/30";
+  if (accion.includes("EDITAR") || accion.includes("CAMBIAR")) return "bg-secondary/20 text-secondary-foreground border-secondary/50";
   if (accion.includes("DESACTIVAR") || accion.includes("REVOCAR") || accion.includes("ELIMINAR"))
-    return "bg-red-500/15 text-red-600 border-red-500/30";
-  if (accion === "LOGIN") return "bg-slate-500/15 text-slate-600 border-slate-500/30";
-  return "bg-amber-500/15 text-amber-600 border-amber-500/30";
+    return "bg-destructive/15 text-destructive border-destructive/30";
+  if (accion === "LOGIN") return "bg-muted text-muted-foreground border-border";
+  return "bg-secondary/15 text-secondary-foreground border-border";
 }
 
 // ─── AsignarSucursalPopover ───────────────────────────────────────────────────
@@ -330,13 +330,13 @@ export function UsuarioDetalleClient({ usuario, roles, todasSucursales, currentU
                     variant="outline"
                     className={
                       data.esta_activo
-                        ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-xs"
-                        : "bg-red-500/15 text-red-600 border-red-500/30 text-xs"
+                        ? "bg-primary/10 text-primary border-primary/20 text-xs"
+                        : "bg-destructive/10 text-destructive border-destructive/20 text-xs"
                     }
                   >
                     <span
                       className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${
-                        data.esta_activo ? "bg-emerald-500" : "bg-red-500"
+                        data.esta_activo ? "bg-primary" : "bg-destructive"
                       }`}
                     />
                     {data.esta_activo ? "Activo" : "Inactivo"}
@@ -400,7 +400,7 @@ export function UsuarioDetalleClient({ usuario, roles, todasSucursales, currentU
                     <Shield className="h-3 w-3" /> Rol Activo
                   </span>
                   {esAutoEdicion && (
-                    <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                    <span className="flex items-center gap-1 text-xs text-destructive">
                       <Lock className="h-3 w-3" />
                       No puedes cambiar tu propio rol
                     </span>
@@ -556,8 +556,8 @@ export function UsuarioDetalleClient({ usuario, roles, todasSucursales, currentU
                               variant="outline"
                               className={`text-xs ${
                                 log.resultado === "EXITOSO"
-                                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                                  : "bg-red-500/10 text-red-600 border-red-500/30"
+                                  ? "bg-primary/10 text-primary border-primary/20"
+                                  : "bg-destructive/10 text-destructive border-destructive/20"
                               }`}
                             >
                               {log.resultado}
@@ -610,7 +610,7 @@ export function UsuarioDetalleClient({ usuario, roles, todasSucursales, currentU
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleRevocarConfirm}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Sí, revocar acceso
             </AlertDialogAction>

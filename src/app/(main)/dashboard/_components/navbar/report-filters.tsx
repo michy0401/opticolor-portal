@@ -53,12 +53,14 @@ export function ReportFilters({ sucursales }: Props) {
   );
 
   return (
-    <div className="flex items-center gap-2">
-      <DateRangePicker value={dateRange} onChange={handleDateChange} />
+    <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 sm:w-auto sm:pb-0">
+      <div className="shrink-0">
+        <DateRangePicker value={dateRange} onChange={handleDateChange} />
+      </div>
 
       {sucursales.length > 0 && (
         <Select value={sucursalParam ?? "all"} onValueChange={handleSucursalChange}>
-          <SelectTrigger className="h-9 gap-1.5 text-sm min-w-[160px]">
+          <SelectTrigger className="h-9 gap-1.5 text-sm min-w-[150px] flex-1 sm:min-w-[160px] sm:flex-none">
             <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <SelectValue placeholder="Todas las sucursales" />
           </SelectTrigger>

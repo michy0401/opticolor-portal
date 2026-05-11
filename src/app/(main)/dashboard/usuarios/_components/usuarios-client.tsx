@@ -42,9 +42,9 @@ function getInitials(name: string) {
 }
 
 function nivelColor(nivel: number | null) {
-  if (nivel === 1 || nivel === 2) return "bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/30";
-  if (nivel === 3) return "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30";
-  return "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30";
+  if (nivel === 1 || nivel === 2) return "bg-primary/15 text-primary border-primary/30";
+  if (nivel === 3) return "bg-secondary/20 text-secondary-foreground border-secondary/50";
+  return "bg-muted text-muted-foreground border-border";
 }
 
 interface Props {
@@ -192,12 +192,12 @@ export default function UsuariosClient({ data, roles, sucursales, currentUserId 
                         variant={usuario.esta_activo ? "default" : "secondary"}
                         className={
                           usuario.esta_activo
-                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 border"
-                            : "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30 border"
+                            ? "bg-primary/10 text-primary border-primary/20 border"
+                            : "bg-destructive/10 text-destructive border-destructive/20 border"
                         }
                       >
                         <span
-                          className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${usuario.esta_activo ? "bg-emerald-500" : "bg-red-500"
+                          className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${usuario.esta_activo ? "bg-primary" : "bg-destructive"
                             }`}
                         />
                         {usuario.esta_activo ? "Activo" : "Inactivo"}
@@ -248,8 +248,8 @@ export default function UsuariosClient({ data, roles, sucursales, currentUserId 
                               variant="ghost"
                               size="icon"
                               className={`h-8 w-8 ${usuario.esta_activo
-                                  ? "text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                  : "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10"
+                                  ? "text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  : "text-primary hover:text-primary hover:bg-primary/10"
                                 }`}
                               onClick={() => setToggleTarget(usuario)}
                               disabled={isPending}
@@ -320,7 +320,7 @@ export default function UsuariosClient({ data, roles, sucursales, currentUserId 
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleToggleConfirm}
-              className={toggleTarget?.esta_activo ? "bg-red-600 hover:bg-red-700" : ""}
+              className={toggleTarget?.esta_activo ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
             >
               {toggleTarget?.esta_activo ? "Sí, desactivar" : "Sí, activar"}
             </AlertDialogAction>
