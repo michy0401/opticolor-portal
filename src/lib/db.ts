@@ -6,13 +6,15 @@ const sqlConfig: sql.config = {
     database: process.env.AZURE_SQL_DATABASE,
     server: process.env.AZURE_SQL_SERVER || "",
     port: parseInt(process.env.AZURE_SQL_PORT || "1433", 10),
+    connectionTimeout: 180000,
+    requestTimeout: 180000,
     pool: {
         max: 10,
         min: 0,
-        idleTimeoutMillis: 30000,
+        idleTimeoutMillis: 180000,
     },
     options: {
-        encrypt: true, // For Azure SQL this must be true
+        encrypt: true,
         trustServerCertificate: false,
     },
 };
