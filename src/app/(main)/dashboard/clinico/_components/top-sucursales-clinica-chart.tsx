@@ -18,8 +18,8 @@ interface Props {
 }
 
 const truncateLabel = (value: string) => {
-  if (value.length > 18) {
-    return value.substring(0, 18) + "...";
+  if (value.length > 12) {
+    return value.substring(0, 12) + "...";
   }
   return value;
 };
@@ -71,7 +71,7 @@ export function TopSucursalesClinicaChart({ data }: Props) {
       <BarChart
         data={data}
         layout="vertical"
-        margin={{ top: 20, right: 30, left: 40, bottom: 20 }}
+        margin={{ top: 20, right: 30, left: 10, bottom: 20 }}
         barCategoryGap="30%"
       >
         <CartesianGrid
@@ -93,10 +93,10 @@ export function TopSucursalesClinicaChart({ data }: Props) {
           dataKey="nombre_sucursal"
           type="category"
           tickFormatter={truncateLabel}
-          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))", textAnchor: "end" }}
+          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))", textAnchor: "end" }}
           tickLine={false}
           axisLine={false}
-          width={100}
+          width={120}
           interval={0}
         />
         <Tooltip
@@ -120,7 +120,7 @@ export function TopSucursalesClinicaChart({ data }: Props) {
           name="Total Exámenes"
           fill="var(--chart-2)"
           radius={[0, 4, 4, 0]}
-          barSize={20}
+          barSize={16}
         />
       </BarChart>
     </ResponsiveContainer>

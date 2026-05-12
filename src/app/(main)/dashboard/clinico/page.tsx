@@ -96,34 +96,19 @@ export default async function ClinicaPage({
         />
       </div>
 
-      {/* ── Fila 2: Sucursales + Volumen vs Conversión ────────── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="overflow-hidden rounded-2xl shadow-md">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">
-              Top Sucursales por Volumen de Exámenes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[800px]">
-              <TopSucursalesClinicaChart data={data.topSucursales} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden rounded-2xl shadow-md flex flex-col">
-          <CardHeader className="pb-3 shrink-0">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">
-              Volumen vs Conversión
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 min-h-0">
-            <div className="h-full min-h-[500px]">
-              <VolumenConversionChart data={data.volumenConversion} />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* ── Fila 4: Tendencia Full Width ────────── */}
+      <Card className="overflow-hidden rounded-2xl shadow-md">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold text-muted-foreground">
+            Tendencia de Exámenes · Últimos 12 Meses
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[375px]">
+            <TendenciaExamenesChart data={data.tendencia} />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ── Fila 3: Género y Edad ────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -134,7 +119,7 @@ export default async function ClinicaPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[500px]">
+            <div className="h-[375px]">
               <GeneroChart data={data.genero} />
             </div>
           </CardContent>
@@ -147,26 +132,43 @@ export default async function ClinicaPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[500px]">
+            <div className="h-[375px]">
               <EdadChart data={data.edad} />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* ── Fila 4: Tendencia Full Width ────────── */}
-      <Card className="overflow-hidden rounded-2xl shadow-md">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-muted-foreground">
-            Tendencia de Exámenes · Últimos 12 Meses
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[500px]">
-            <TendenciaExamenesChart data={data.tendencia} />
-          </div>
-        </CardContent>
-      </Card>
+
+
+      {/* ── Fila 2: Sucursales + Volumen vs Conversión ────────── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card className="overflow-hidden rounded-2xl shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold text-muted-foreground">
+              Top Sucursales por Volumen de Exámenes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[550px]">
+              <TopSucursalesClinicaChart data={data.topSucursales} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden rounded-2xl shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold text-muted-foreground">
+              Volumen vs Conversión
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[500px]">
+              <VolumenConversionChart data={data.volumenConversion} />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
