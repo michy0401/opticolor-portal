@@ -1,0 +1,280 @@
+"use server";
+
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getConnection } from "@/lib/db";
+
+// ─── Tipos exportados ─────────────────────────────────────────────────────────
+
+export type CarteraKpiData = {
+  montoPedidos: number;
+  recaudado: number;
+  saldoPendiente: number;
+  pedidosLiquidar: number;
+  pctCobroInmediato: number;
+  pctNivelAbono: number;
+};
+
+export type GapCobro = {
+  mes_pedido_nombre: string;
+  monto_total: number;
+  saldo_pendiente: number;
+};
+
+export type MixVenta = {
+  categoria_agrupada: string;
+  venta_neta: number;
+  facturas: number;
+};
+
+export type CarteraSucursal = {
+  nombre_sucursal: string;
+  saldo_pendiente: number;
+};
+
+export type ClienteDeudor = {
+  nombre_sucursal: string;
+  nombre_completo: string;
+  monto_total: number;
+  monto_pagado: number;
+  saldo_pendiente: number;
+};
+
+export type CarteraData = {
+  kpis: CarteraKpiData;
+  gapCobro: GapCobro[];
+  mixVentas: MixVenta[];
+  carteraSucursal: CarteraSucursal[];
+  clientesDeudores: ClienteDeudor[];
+};
+
+type Params = {
+  startDate: string; // "YYYY-MM-DD"
+  endDate: string;   // "YYYY-MM-DD"
+  sucursalId: number | null;
+};
+
+// ─── Filtro de sucursal reutilizable ─────────────────────────────────────────
+
+function sucursalFilter(tableAlias = "") {
+  const col = tableAlias ? `${tableAlias}.id_sucursal` : "id_sucursal";
+  return `
+    AND (
+      (
+        @isSupervisor = 1
+        AND ${col} IN (
+          SELECT id_sucursal
+          FROM dbo.Seguridad_Usuarios_Sucursales
+          WHERE id_usuario = @userId AND esta_vigente = 1
+        )
+      )
+      OR (
+        @isSupervisor = 0
+        AND (@sucursalId IS NULL OR ${col} = @sucursalId)
+      )
+    )`;
+}
+
+// ─── Acción principal ─────────────────────────────────────────────────────────
+
+export async function getCarteraData(
+  params: Params,
+): Promise<{ success: boolean; data?: CarteraData; error?: string }> {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return { success: false, error: "No autorizado" };
+
+    const isSupervisor =
+      session.user.nivel === 4 || session.user.rol === "SUPERVISOR";
+    const userId = parseInt(session.user.id, 10);
+    const { startDate, endDate, sucursalId } = params;
+
+    const pool = await getConnection();
+
+    const startYM = parseInt(startDate.slice(0, 4) + startDate.slice(5, 7), 10);
+    const endYM = parseInt(endDate.slice(0, 4) + endDate.slice(5, 7), 10);
+
+    const req = () =>
+      pool
+        .request()
+        .input("startDate", startDate)
+        .input("endDate", endDate)
+        .input("startYM", startYM)
+        .input("endYM", endYM)
+        .input("sucursalId", sucursalId)
+        .input("userId", userId)
+        .input("isSupervisor", isSupervisor ? 1 : 0);
+
+    // ── Consultas en paralelo ────────────────────────────────────────────────
+
+    const [
+      montoPedidosRes,
+      recaudadoRes,
+      saldoPendienteRes,
+      pedidosLiquidarRes,
+      pctCobroInmediatoRes,
+      pctNivelAbonoRes,
+      gapCobroRes,
+      mixVentasRes,
+      carteraSucursalRes,
+      clientesDeudoresRes,
+    ] = await Promise.all([
+
+      // 1. Monto Pedidos
+      req().query(`
+        SELECT ISNULL(SUM(monto_total), 0) AS valor
+        FROM dbo.KPI_Inf3_Monto_Pedidos
+        WHERE CAST(fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
+        ${sucursalFilter()}
+      `),
+
+      // 2. Recaudado
+      req().query(`
+        SELECT ISNULL(SUM(monto_pagado), 0) AS valor
+        FROM dbo.KPI_Inf3_Recaudado_Pedidos
+        WHERE CAST(fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
+        ${sucursalFilter()}
+      `),
+
+      // 3. Saldo Pendiente (Snapshot histórico)
+      req().query(`
+        SELECT ROUND(COALESCE(SUM(saldo_pendiente), 0), 2) AS valor
+        FROM dbo.KPI_Inf3_Saldo_Pendiente
+        WHERE CAST(fecha_pedido_completa AS DATE) <= @endDate
+        ${sucursalFilter()}
+      `),
+
+      // 4. Pedidos por Liquidar (Snapshot histórico)
+      req().query(`
+        SELECT COUNT(DISTINCT id_pedido) AS valor
+        FROM dbo.KPI_Inf3_Pedidos_Liquidar
+        WHERE CAST(fecha_pedido_completa AS DATE) <= @endDate
+        ${sucursalFilter()}
+      `),
+
+      // 5. % Primer Abono
+      req().query(`
+        SELECT ISNULL(COUNT(DISTINCT CASE WHEN monto_pagado > 0 THEN id_pedido END) * 100.0 / NULLIF(COUNT(DISTINCT id_pedido), 0), 0) AS valor
+        FROM dbo.Fact_Pedidos
+        WHERE CAST(fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
+        ${sucursalFilter()}
+      `),
+
+      // 6. % Pago Total
+      req().query(`
+        SELECT ISNULL(COUNT(DISTINCT CASE WHEN saldo_pendiente <= 0 THEN id_pedido END) * 100.0 / NULLIF(COUNT(DISTINCT id_pedido), 0), 0) AS valor
+        FROM dbo.Fact_Pedidos
+        WHERE CAST(fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
+        ${sucursalFilter()}
+      `),
+
+      // 7. GAP de Cobro (Tendencia - Últimos 12 meses)
+      req().query(`
+        SELECT 
+          mes_pedido_nombre,
+          YEAR(fecha_pedido_completa) AS anio,
+          MONTH(fecha_pedido_completa) AS mes,
+          ISNULL(SUM(monto_total), 0) AS monto_total,
+          ISNULL(SUM(saldo_pendiente), 0) AS saldo_pendiente
+        FROM dbo.Fact_Pedidos
+        WHERE CAST(fecha_pedido_completa AS DATE) >= DATEADD(month, -12, CAST(@endDate AS DATE))
+          AND CAST(fecha_pedido_completa AS DATE) <= @endDate
+        ${sucursalFilter()}
+        GROUP BY mes_pedido_nombre, YEAR(fecha_pedido_completa), MONTH(fecha_pedido_completa)
+        ORDER BY YEAR(fecha_pedido_completa) ASC, MONTH(fecha_pedido_completa) ASC
+      `),
+
+      // 8. Mix de Ventas
+      req().query(`
+        SELECT 
+          categoria_agrupada,
+          ISNULL(SUM(venta_neta), 0) AS venta_neta,
+          COUNT(DISTINCT id_factura) AS facturas
+        FROM dbo.Fact_Ventas_por_Categoria
+        WHERE CAST(fecha_factura AS DATE) BETWEEN @startDate AND @endDate
+        ${sucursalFilter()}
+        GROUP BY categoria_agrupada
+        ORDER BY venta_neta DESC
+      `),
+
+      // 9. Cartera por Sucursal (Snapshot histórico)
+      req().query(`
+        SELECT 
+          ds.nombre_sucursal,
+          ROUND(COALESCE(SUM(k.saldo_pendiente), 0), 2) AS saldo_pendiente
+        FROM dbo.KPI_Inf3_Saldo_Pendiente k
+        LEFT JOIN dbo.Dim_Sucursales ds ON k.id_sucursal = ds.id_sucursal
+        WHERE CAST(k.fecha_pedido_completa AS DATE) <= @endDate
+        ${sucursalFilter("k")}
+        GROUP BY ds.nombre_sucursal
+        ORDER BY saldo_pendiente DESC
+      `),
+
+      // 10. Top Clientes Deudores (Snapshot histórico)
+      req().query(`
+        SELECT TOP 10
+          ds.nombre_sucursal,
+          dc.nombre_completo,
+          ISNULL(SUM(fp.monto_total), 0) AS monto_total,
+          ISNULL(SUM(fp.monto_pagado), 0) AS monto_pagado,
+          ISNULL(SUM(fp.saldo_pendiente), 0) AS saldo_pendiente
+        FROM dbo.Fact_Pedidos fp
+        INNER JOIN dbo.Dim_Clientes dc ON fp.id_cliente = dc.id_cliente
+        INNER JOIN dbo.Dim_Sucursales ds ON fp.id_sucursal = ds.id_sucursal
+        WHERE CAST(fp.fecha_pedido_completa AS DATE) <= @endDate
+        ${sucursalFilter("fp")}
+        GROUP BY ds.nombre_sucursal, dc.nombre_completo
+        HAVING ISNULL(SUM(fp.saldo_pendiente), 0) > 0
+        ORDER BY saldo_pendiente DESC
+      `),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        kpis: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          montoPedidos: Number((montoPedidosRes.recordset[0] as any)?.valor ?? 0),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          recaudado: Number((recaudadoRes.recordset[0] as any)?.valor ?? 0),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          saldoPendiente: Number((saldoPendienteRes.recordset[0] as any)?.valor ?? 0),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          pedidosLiquidar: Number((pedidosLiquidarRes.recordset[0] as any)?.valor ?? 0),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          pctCobroInmediato: Number((pctCobroInmediatoRes.recordset[0] as any)?.valor ?? 0),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          pctNivelAbono: Number((pctNivelAbonoRes.recordset[0] as any)?.valor ?? 0),
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        gapCobro: gapCobroRes.recordset.map((r: any) => ({
+          mes_pedido_nombre: String(r.mes_pedido_nombre ?? ""),
+          monto_total: Number(r.monto_total ?? 0),
+          saldo_pendiente: Number(r.saldo_pendiente ?? 0),
+        })),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        mixVentas: mixVentasRes.recordset.map((r: any) => ({
+          categoria_agrupada: String(r.categoria_agrupada ?? ""),
+          venta_neta: Number(r.venta_neta ?? 0),
+          facturas: Number(r.facturas ?? 0),
+        })),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        carteraSucursal: carteraSucursalRes.recordset.map((r: any) => ({
+          nombre_sucursal: String(r.nombre_sucursal ?? ""),
+          saldo_pendiente: Number(r.saldo_pendiente ?? 0),
+        })),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        clientesDeudores: clientesDeudoresRes.recordset.map((r: any) => ({
+          nombre_sucursal: String(r.nombre_sucursal ?? ""),
+          nombre_completo: String(r.nombre_completo ?? ""),
+          monto_total: Number(r.monto_total ?? 0),
+          monto_pagado: Number(r.monto_pagado ?? 0),
+          saldo_pendiente: Number(r.saldo_pendiente ?? 0),
+        })),
+      },
+    };
+  } catch (err) {
+    console.error("[getCarteraData]", err);
+    return { success: false, error: "Error al obtener los datos de cartera y saldos." };
+  }
+}

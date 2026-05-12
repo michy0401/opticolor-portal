@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { subDays } from "date-fns";
+import { subDays, startOfMonth } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { MapPin } from "lucide-react";
 
@@ -26,7 +26,7 @@ export function ReportFilters({ sucursales }: Props) {
   const sucursalParam = searchParams.get("sucursal");
 
   const dateRange: DateRange = {
-    from: fromParam ? new Date(fromParam) : subDays(new Date(), 29),
+    from: fromParam ? new Date(fromParam) : startOfMonth(new Date()),
     to:   toParam   ? new Date(toParam)   : new Date(),
   };
 

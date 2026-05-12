@@ -9,6 +9,11 @@ import {
   ShoppingCart,
   TrendingUp,
   UserPlus,
+  Wallet,
+  Percent,
+  AlertTriangle,
+  ClipboardList,
+  FileText,
 } from "lucide-react";
 
 import {
@@ -27,6 +32,11 @@ const ICON_MAP: Record<string, LucideIcon> = {
   "shopping-cart": ShoppingCart,
   "eye":           Eye,
   "user-plus":     UserPlus,
+  "wallet":        Wallet,
+  "percent":       Percent,
+  "alert-triangle": AlertTriangle,
+  "clipboard-list": ClipboardList,
+  "file-text":     FileText,
 };
 
 // Premium grayscale theme for icons using design system tokens

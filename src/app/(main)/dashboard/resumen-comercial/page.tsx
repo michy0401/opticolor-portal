@@ -1,4 +1,4 @@
-import { format, subDays } from "date-fns";
+import { format, subDays, startOfMonth } from "date-fns";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -40,7 +40,7 @@ export default async function ResumenComercialPage({
 
   const startDate = from
     ? format(new Date(from), "yyyy-MM-dd")
-    : format(subDays(new Date(), 29), "yyyy-MM-dd");
+    : format(startOfMonth(new Date()), "yyyy-MM-dd");
   const endDate = to
     ? format(new Date(to), "yyyy-MM-dd")
     : format(new Date(), "yyyy-MM-dd");
