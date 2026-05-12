@@ -16,6 +16,12 @@ import {
   FileText,
   PackageCheck,
   Package,
+  Activity,
+  Users,
+  CheckCircle,
+  XCircle,
+  Calendar,
+  Clipboard,
 } from "lucide-react";
 
 import {
@@ -41,6 +47,12 @@ const ICON_MAP: Record<string, LucideIcon> = {
   "file-text": FileText,
   "package-check": PackageCheck,
   "package": Package,
+  "activity": Activity,
+  "users": Users,
+  "check-circle": CheckCircle,
+  "x-circle": XCircle,
+  "calendar": Calendar,
+  "clipboard": Clipboard,
 };
 
 // Premium grayscale theme for icons using design system tokens
