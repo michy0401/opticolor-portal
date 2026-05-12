@@ -14,6 +14,8 @@ import {
   AlertTriangle,
   ClipboardList,
   FileText,
+  PackageCheck,
+  Package,
 } from "lucide-react";
 
 import {
@@ -25,18 +27,20 @@ import {
 import { cn } from "@/lib/utils";
 
 const ICON_MAP: Record<string, LucideIcon> = {
-  "dollar-sign":   DollarSign,
-  "trending-up":   TrendingUp,
-  "credit-card":   CreditCard,
-  "bar-chart-3":   BarChart3,
+  "dollar-sign": DollarSign,
+  "trending-up": TrendingUp,
+  "credit-card": CreditCard,
+  "bar-chart-3": BarChart3,
   "shopping-cart": ShoppingCart,
-  "eye":           Eye,
-  "user-plus":     UserPlus,
-  "wallet":        Wallet,
-  "percent":       Percent,
+  "eye": Eye,
+  "user-plus": UserPlus,
+  "wallet": Wallet,
+  "percent": Percent,
   "alert-triangle": AlertTriangle,
   "clipboard-list": ClipboardList,
-  "file-text":     FileText,
+  "file-text": FileText,
+  "package-check": PackageCheck,
+  "package": Package,
 };
 
 // Premium grayscale theme for icons using design system tokens

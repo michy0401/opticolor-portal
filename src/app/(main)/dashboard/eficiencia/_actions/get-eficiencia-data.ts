@@ -1,0 +1,197 @@
+"use server";
+
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getConnection } from "@/lib/db";
+
+// ─── Tipos exportados ─────────────────────────────────────────────────────────
+
+export type EficienciaKpis = {
+  ordenesHoy: number;
+  volumenOrdenes: number;
+  promedioDiario: number;
+  montoTotal: number;
+};
+
+export type TendenciaOrden = {
+  mes_nombre: string;
+  volumen_ordenes: number;
+};
+
+export type TipoLenteDetalle = {
+  tipo_lente_descripcion: string;
+  volumen_ordenes: number;
+  monto_total: number;
+};
+
+export type OrdenesSucursal = {
+  nombre_sucursal: string;
+  volumen_ordenes: number;
+};
+
+export type EficienciaData = {
+  kpis: EficienciaKpis;
+  tendencia: TendenciaOrden[];
+  tipoLente: TipoLenteDetalle[];
+  ordenesSucursal: OrdenesSucursal[];
+};
+
+type Params = {
+  startDate: string; // "YYYY-MM-DD"
+  endDate: string;   // "YYYY-MM-DD"
+  sucursalId: number | null;
+};
+
+// ─── Filtro de sucursal reutilizable ─────────────────────────────────────────
+
+function sucursalFilter(tableAlias = "") {
+  const col = tableAlias ? `${tableAlias}.id_sucursal` : "id_sucursal";
+  return `
+    AND (
+      (
+        @isSupervisor = 1
+        AND ${col} IN (
+          SELECT id_sucursal
+          FROM dbo.Seguridad_Usuarios_Sucursales
+          WHERE id_usuario = @userId AND esta_vigente = 1
+        )
+      )
+      OR (
+        @isSupervisor = 0
+        AND (@sucursalId IS NULL OR ${col} = @sucursalId)
+      )
+    )`;
+}
+
+// ─── Acción principal ─────────────────────────────────────────────────────────
+
+export async function getEficienciaData(
+  params: Params,
+): Promise<{ success: boolean; data?: EficienciaData; error?: string }> {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return { success: false, error: "No autorizado" };
+
+    const isSupervisor =
+      session.user.nivel === 4 || session.user.rol === "SUPERVISOR";
+    const userId = parseInt(session.user.id, 10);
+    const { startDate, endDate, sucursalId } = params;
+
+    const pool = await getConnection();
+
+    const req = () =>
+      pool
+        .request()
+        .input("startDate", startDate)
+        .input("endDate", endDate)
+        .input("sucursalId", sucursalId)
+        .input("userId", userId)
+        .input("isSupervisor", isSupervisor ? 1 : 0);
+
+    // ── Consultas en paralelo ────────────────────────────────────────────────
+    const [
+      ordenesHoyRes,
+      periodoStatsRes,
+      tendenciaRes,
+      tipoLenteRes,
+      ordenesSucursalRes,
+    ] = await Promise.all([
+      // 1. Órdenes Hoy (Snapshot ignorando startDate y endDate del filtro)
+      req().query(`
+        SELECT ISNULL(COUNT(id_pedido), 0) AS valor
+        FROM dbo.Fact_Eficiencia_Ordenes
+        WHERE CAST(fecha_pedido AS DATE) = CAST(GETDATE() AT TIME ZONE 'UTC' AT TIME ZONE 'SA Western Standard Time' AS DATE)
+        ${sucursalFilter()}
+      `),
+
+      // 2. Volumen y KPIs de todo el periodo
+      req().query(`
+        SELECT 
+          ISNULL(COUNT(id_pedido), 0) AS volumen_ordenes,
+          ISNULL(SUM(monto_total), 0) AS monto_total,
+          CASE WHEN COUNT(DISTINCT CAST(fecha_pedido AS DATE)) = 0 
+               THEN 0 
+               ELSE CAST(COUNT(id_pedido) AS FLOAT) / COUNT(DISTINCT CAST(fecha_pedido AS DATE)) 
+          END AS promedio_ordenes_diarias
+        FROM dbo.Fact_Eficiencia_Ordenes
+        WHERE CAST(fecha_pedido AS DATE) BETWEEN @startDate AND @endDate
+        ${sucursalFilter()}
+      `),
+
+      // 3. Tendencia (Últimos 12 meses respecto a endDate)
+      req().query(`
+        SELECT 
+          mes_nombre,
+          YEAR(fecha_pedido) AS anio,
+          MONTH(fecha_pedido) AS mes,
+          ISNULL(COUNT(id_pedido), 0) AS volumen_ordenes
+        FROM dbo.Fact_Eficiencia_Ordenes
+        WHERE CAST(fecha_pedido AS DATE) >= DATEADD(month, -12, CAST(@endDate AS DATE))
+          AND CAST(fecha_pedido AS DATE) <= @endDate
+        ${sucursalFilter()}
+        GROUP BY mes_nombre, YEAR(fecha_pedido), MONTH(fecha_pedido)
+        ORDER BY YEAR(fecha_pedido) ASC, MONTH(fecha_pedido) ASC
+      `),
+
+      // 4. Detalle por Tipo Lente (Para Chart y Tabla)
+      req().query(`
+        SELECT 
+          ISNULL(tipo_lente_descripcion, 'Sin Definir') AS tipo_lente_descripcion,
+          ISNULL(COUNT(id_pedido), 0) AS volumen_ordenes,
+          ISNULL(SUM(monto_total), 0) AS monto_total
+        FROM dbo.Fact_Eficiencia_Ordenes
+        WHERE CAST(fecha_pedido AS DATE) BETWEEN @startDate AND @endDate
+        ${sucursalFilter()}
+        GROUP BY tipo_lente_descripcion
+        ORDER BY volumen_ordenes DESC
+      `),
+
+      // 5. Órdenes por Sucursal (Para BarChart Horizontal)
+      req().query(`
+        SELECT 
+          ds.nombre_sucursal,
+          ISNULL(COUNT(f.id_pedido), 0) AS volumen_ordenes
+        FROM dbo.Fact_Eficiencia_Ordenes f
+        INNER JOIN dbo.Dim_Sucursales ds ON f.id_sucursal = ds.id_sucursal
+        WHERE CAST(f.fecha_pedido AS DATE) BETWEEN @startDate AND @endDate
+        ${sucursalFilter("f")}
+        GROUP BY ds.nombre_sucursal
+        ORDER BY volumen_ordenes DESC
+      `),
+    ]);
+
+    const stats = periodoStatsRes.recordset[0] || { volumen_ordenes: 0, promedio_ordenes_diarias: 0, monto_total: 0 };
+
+    return {
+      success: true,
+      data: {
+        kpis: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ordenesHoy: Number((ordenesHoyRes.recordset[0] as any)?.valor ?? 0),
+          volumenOrdenes: Number(stats.volumen_ordenes ?? 0),
+          promedioDiario: Number(stats.promedio_ordenes_diarias ?? 0),
+          montoTotal: Number(stats.monto_total ?? 0),
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tendencia: tendenciaRes.recordset.map((r: any) => ({
+          mes_nombre: String(r.mes_nombre ?? ""),
+          volumen_ordenes: Number(r.volumen_ordenes ?? 0),
+        })),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tipoLente: tipoLenteRes.recordset.map((r: any) => ({
+          tipo_lente_descripcion: String(r.tipo_lente_descripcion ?? ""),
+          volumen_ordenes: Number(r.volumen_ordenes ?? 0),
+          monto_total: Number(r.monto_total ?? 0),
+        })),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ordenesSucursal: ordenesSucursalRes.recordset.map((r: any) => ({
+          nombre_sucursal: String(r.nombre_sucursal ?? ""),
+          volumen_ordenes: Number(r.volumen_ordenes ?? 0),
+        })),
+      },
+    };
+  } catch (err) {
+    console.error("[getEficienciaData]", err);
+    return { success: false, error: "Error al obtener los datos de eficiencia de órdenes." };
+  }
+}
