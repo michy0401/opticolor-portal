@@ -37,7 +37,7 @@ export interface NavGroup {
 export const sidebarItems: NavGroup[] = [
   {
     id: 1,
-    label: "Análisis Principal",
+    label: "Reportes",
     items: [
       {
         title: "Resumen Comercial",
@@ -49,12 +49,6 @@ export const sidebarItems: NavGroup[] = [
         url: "/dashboard/cartera",
         icon: Wallet,
       },
-    ],
-  },
-  {
-    id: 2,
-    label: "Operaciones",
-    items: [
       {
         title: "Eficiencia de Órdenes",
         url: "/dashboard/eficiencia",
@@ -73,7 +67,7 @@ export const sidebarItems: NavGroup[] = [
     ],
   },
   {
-    id: 3,
+    id: 2,
     label: "Configuración",
     items: [
       {

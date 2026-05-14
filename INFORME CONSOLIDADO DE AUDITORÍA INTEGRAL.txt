@@ -1,0 +1,182 @@
+OMNI-AGENT PROTOCOL — INFORME CONSOLIDADO DE AUDITORÍA INTEGRAL
+Portal Opticolor | VisioFlow Tech | 2026-05-12
+
+RESUMEN EJECUTIVO
+Agente	Hallazgos Críticos	Hallazgos Altos	Hallazgos Medios	Hallazgos Bajos
+ArchiData-Flow	2	0	1	1
+LogicAudit-Pro	0	0	2	2
+Velocity-Optimizer	1	1	1	1
+SecureGuard-Shield	0	0	1	2
+CleanCode-Architect	0	2	1	1
+DataScribe-Lexicon	0	2	1	1
+Visionary-UI	0	0	0	1
+ARCHIDATA-FLOW — Arquitectura y Esquema SQL
+Validación cruzada con VISTAS.csv: columnas confirmadas
+Todas las vistas de los módulos Comercial, Cartera, Eficiencia y Clínica tienen sus columnas correctamente mapeadas contra el CSV. Resumen positivo:
+
+Vista	Campos usados en código	Estado
+KPI_Inf1_Venta_Neta	monto_neto, fecha_factura, id_sucursal	CORRECTO
+KPI_Inf1_Total_Cobrado	importe_neto, fecha_completa, id_sucursal	CORRECTO
+KPI_Inf1_Mix_Medios_Pago	importe_neto, metodo_pago, fecha_completa	CORRECTO
+KPI_Inf1_Ticket_Promedio	anio, mes_nro, venta_neta, cantidad_pedidos	CORRECTO
+KPI_Inf1_Proyeccion_Venta_Neta	monto_neto, dia_hoy_gmt4, dias_del_mes	CORRECTO
+KPI_Inf1_Cantidad_Facturas	id_factura, fecha_factura, id_sucursal	CORRECTO
+Fact_Examenes	id_examen, fecha_examen_completa, estado_conversion	CORRECTO
+Fact_Eficiencia_Ordenes	id_pedido, fecha_pedido, tipo_lente_descripcion	CORRECTO
+Fact_Pedidos	monto_total, monto_pagado, saldo_pendiente, mes_pedido_nombre	CORRECTO
+KPI_Inf3_Saldo_Pendiente	fecha_pedido_completa, saldo_pendiente, id_sucursal	CORRECTO
+Fact_Ventas_por_Categoria	categoria_agrupada, venta_neta, id_factura	CORRECTO
+Dim_Clientes	genero_label, rango_edad_descripcion, nombre_completo	CORRECTO
+HALLAZGO CRÍTICO #1 — Discrepancia de nombre de vista: Dim_Produtos vs Dim_Productos
+Módulo afectado: get-inventario-data.ts y get-inventario-filters.ts
+
+Problema: El CSV registra el view como Dim_Productos (español, con 'c'). El código usa dbo.Dim_Produtos (portugués, con 't'). Si el nombre real en Azure SQL es Dim_Productos, todos los queries de Inventario fallarían con Invalid object name.
+
+
+-- CSV dice:
+Dim_Productos ; SK_Produto
+
+-- Código usa:
+INNER JOIN dbo.Dim_Produtos dp ON fi.id_produto = dp.SK_Produto
+Acción requerida: Confirmar el nombre exacto del objeto en Azure SQL y corregir el código o el CSV. Verificar antes del despliegue.
+
+HALLAZGO CRÍTICO #2 — Discrepancia de columna FK en Fact_Ventas_Detalle
+Módulo afectado: get-inventario-data.ts:148-163
+
+Problema: El CSV documenta Fact_Ventas_Detalle.id_producto (español, con 'c'). El código usa fvd.id_produto (portugués, con 't'). Nótese que Fact_Inventario.id_produto sí usa la 't' — hay inconsistencia dentro del propio esquema de la BD.
+
+
+-- CSV dice:   Fact_Ventas_Detalle ; id_producto
+-- Código usa: fvd.id_produto = dp.SK_Produto  ← puede ser Invalid column name
+Acción requerida: Verificar en Azure SQL el nombre exacto del campo FK en Fact_Ventas_Detalle.
+
+HALLAZGO MEDIO #3 — Cartera ignora vistas KPI dedicadas para % Cobro
+Módulo afectado: get-cartera-data.ts:156-169
+
+Las vistas KPI_Inf3_Pct_Cobro_Inmediato y KPI_Inf3_Pct_Nivel_Abono existen en la BD con columnas pre-calculadas (pct_cobro_inmediato, pct_nivel_abono), pero el código las recalcula manualmente con CASE WHEN sobre Fact_Pedidos. Riesgo de divergencia con el Power BI.
+
+HALLAZGO BAJO #4 — trafico usa COUNT(*) en lugar de COUNT(DISTINCT id_factura)
+Módulo afectado: get-resumen-data.ts:228
+
+
+COUNT(*) AS trafico  -- cuenta líneas de detalle, no facturas únicas
+Si el DAX de Power BI cuenta transacciones únicas, hay discrepancia.
+
+LOGICAUDIT-PRO — Paridad BI y Manejo de Nulos
+HALLAZGO MEDIO #5 — División sin redondeo en pctConversion (Clínica)
+Módulo afectado: get-clinica-data.ts:221
+
+
+const pctConversion = totalExamenes > 0 ? (convertidos / totalExamenes) * 100 : 0;
+// Resultado: 15.333333... sin redondear — puede distorsionar la UI
+El estándar del agente exige 2 decimales. Falta Math.round(pctConversion * 100) / 100.
+
+HALLAZGO MEDIO #6 — promedioDiario sin redondeo (Eficiencia y Clínica)
+Ambos módulos calculan el promedio diario con CAST... AS FLOAT en SQL y lo retornan crudo a TypeScript sin redondeo. Puede resultar en 7.142857142857143 en el UI.
+
+HALLAZGO BAJO #7 — Clientes Nuevos: NOT EXISTS sin filtro de sucursal interno
+Módulo afectado: get-resumen-data.ts:208-217
+
+La sub-consulta que descarta clientes con pedidos anteriores NO aplica sucursalFilter. Define "nuevo" como nuevo a toda la cadena, no a la sucursal. Validar si coincide con el DAX original.
+
+HALLAZGO BAJO #8 — pct_conversion por mes sin protección de divisor cero
+Módulo afectado: get-clinica-data.ts:255-258
+
+
+const mPct = mTotal > 0 ? (mConv / mTotal) * 100 : 0;  // correcto ✓
+Este sí está protegido. Sin embargo, no aplica redondeo. Marcar como bajo.
+
+VELOCITY-OPTIMIZER — Rendimiento y Pool
+HALLAZGO CRÍTICO #9 — Comercial supera el límite del pool de conexiones
+Módulo afectado: get-resumen-data.ts
+
+pool.max = 10 pero getResumenData abre 11 queries en paralelo. Si dos usuarios cargan Comercial simultáneamente → 22 conexiones → ConnectionError: Max connection pool size reached.
+
+Módulo	Queries paralelas
+Comercial	11 ← supera pool.max (10)
+Cartera	10 ← al límite
+Clínica	7
+Eficiencia	5
+Inventario	5
+Estrategia: Consolidar al menos 2–3 queries de Comercial (ej: ventaNeta y ventaNetaYTD son el mismo query con diferente rango → pueden unificarse con UNION ALL o CTE).
+
+HALLAZGO ALTO #10 — Sin caching en ningún módulo
+Ninguna Server Action implementa cache, unstable_cache ni revalidación de Next.js. getMarcasGrupos() re-consulta Azure SQL en cada carga de /inventario. Datos de referencia como Marcas, Grupos y Sucursales son ideales para revalidate: 3600.
+
+HALLAZGO MEDIO #11 — Fact_Ventas_Analitico es round-trip redundante
+En Comercial, el gráfico YTD usa Fact_Ventas_Analitico pero la misma información (venta neta por mes) ya existe en KPI_Inf1_Venta_Neta. Eliminar una query ahora que ya se sabe cuál es redundante.
+
+SECUREGUARD-SHIELD — Seguridad
+CONFIRMACIONES POSITIVAS
+Todas las queries usan .input() parametrizado — SQL Injection: IMPOSIBLE ✓
+getServerSession validado en los 5 módulos de reporte y todas las acciones de usuario ✓
+sucursalFilter() opera 100% server-side, no sobreescribible por el cliente ✓
+Variables de entorno usadas correctamente desde .env, sin hardcoding ✓
+HALLAZGO MEDIO #12 — Usuario sin sucursal asignada ve TODOS los datos
+Módulo afectado: sucursalFilter() en todos los módulos
+
+
+@isSupervisor = 0 AND (@sucursalId IS NULL OR col = @sucursalId)
+Si @sucursalId IS NULL y el usuario no es supervisor, la condición retorna TODAS las sucursales. Un usuario de sucursal A que no seleccione filtro obtiene datos globales. Validar si esta es la regla de negocio intencional para el rol ADMINISTRADOR.
+
+HALLAZGO BAJO #13 — Middleware no redirige /dashboard raíz para supervisores
+Módulo afectado: middleware.ts:12
+
+El middleware protege /dashboard/usuarios y /dashboard/sucursales para supervisores, pero si un supervisor accede directamente a /dashboard (raíz), pasa sin redirección. El page.tsx de dashboard debería manejar esto, pero no está explícito en el middleware.
+
+HALLAZGO BAJO #14 — console.error(err) puede exponer stack traces en logs
+Todos los Server Actions hacen console.error("[Módulo]", err). Esto es correcto para servidor, pero en producción Azure App Service estos logs son accesibles. Se recomienda separar el log técnico del mensaje enviado al cliente (ya implementado), pero agregar niveles de severidad.
+
+CLEANCODE-ARCHITECT — Deuda Técnica
+HALLAZGO ALTO #15 — sucursalFilter() duplicada en 5 archivos
+La función es idéntica en get-resumen-data.ts, get-cartera-data.ts, get-eficiencia-data.ts, get-clinica-data.ts y get-inventario-data.ts. Viola DRY.
+
+Propuesta: Extraer a src/lib/sql-helpers.ts y exportar como buildSucursalFilter(tableAlias?: string): string.
+
+HALLAZGO ALTO #16 — Session boilerplate replicado en todos los Server Actions
+Este bloque de 4 líneas está copiado literalmente en los 5 módulos de reporte:
+
+
+const session = await getServerSession(authOptions);
+if (!session?.user?.id) return { success: false, error: "No autorizado" };
+const isSupervisor = session.user.nivel === 4 || session.user.rol === "SUPERVISOR";
+const userId = parseInt(session.user.id, 10);
+Propuesta: Extraer a src/lib/get-auth-context.ts que retorne { userId, isSupervisor } o lance si no autorizado.
+
+HALLAZGO MEDIO #17 — Uso sistemático de any (~30 ocurrencias)
+Cada módulo tiene entre 5–8 líneas con // eslint-disable-next-line @typescript-eslint/no-explicit-any. Las filas de recordset deben tener interfaces tipadas (ej: interface VentaNetaRow { valor: number }).
+
+HALLAZGO BAJO #18 — Componentes potencialmente duplicados
+kpi-card.tsx y quick-actions.tsx aparecen en 2 directorios distintos. Verificar si son copias o re-exports antes de la fase de despliegue.
+
+VISIONARY-UI — Consistencia Visual
+HALLAZGO BAJO #19 — Sin confirmación visual de altura estándar y paleta
+No fue posible confirmar que todos los gráficos usen h-[500px] y la paleta Aqua Blue/Pearl Gray sin inspección de cada componente visual. Se recomienda un sweep de los archivos de componentes de chart en todos los módulos antes del despliegue.
+
+DATASCRIBE-LEXICON — Documentación
+HALLAZGO ALTO #20 — No existe Diccionario de Datos de métricas de negocio
+No hay un documento que mapee:
+
+Etiqueta Dashboard	Alias SQL	Vista	Lógica
+"Venta Neta"	monto_neto	KPI_Inf1_Venta_Neta	SUM período filtrado
+"Venta Neta YTD"	monto_neto	misma vista	SUM Ene-1 → hoy
+"Stock Físico"	cantidad_disponible	Fact_Inventario	Snapshot ≤ endDate
+HALLAZGO ALTO #21 — Ningún Server Action tiene descripción JSDoc
+HALLAZGO MEDIO #22 — Métricas sin definición en documentación: UPT, ASP, GAP de Cobro, Snapshot vs. Flow
+PLAN DE EJECUCIÓN PRIORITARIO
+Prioridad	ID	Acción	Agente Responsable	Esfuerzo
+🔴 P0	#1	Verificar y corregir nombre Dim_Produtos vs Dim_Productos	ArchiData-Flow	30 min
+🔴 P0	#2	Verificar Fact_Ventas_Detalle.id_produto vs id_producto	ArchiData-Flow	30 min
+🔴 P0	#9	Reducir Comercial a ≤10 queries paralelas	Velocity-Optimizer	2h
+🟠 P1	#15	Extraer sucursalFilter() a src/lib/sql-helpers.ts	CleanCode-Architect	1h
+🟠 P1	#16	Extraer session boilerplate a src/lib/get-auth-context.ts	CleanCode-Architect	1h
+🟠 P1	#3	Usar vistas KPI_Inf3_Pct_* para % Cobro en Cartera	ArchiData-Flow + LogicAudit	1h
+🟠 P1	#10	Implementar unstable_cache en getMarcasGrupos y sucursales	Velocity-Optimizer	1h
+🟡 P2	#5	Redondear pctConversion y promedioDiario	LogicAudit-Pro	30 min
+🟡 P2	#12	Validar y documentar regla de negocio de sucursalId IS NULL	SecureGuard	30 min
+🟡 P2	#20	Crear Diccionario de Datos de métricas	DataScribe-Lexicon	3h
+🟢 P3	#17	Tipar interfaces de filas SQL (eliminar any)	CleanCode-Architect	3h
+🟢 P3	#4	Auditar trafico = COUNT(*) vs DAX	LogicAudit-Pro	30 min
+🟢 P3	#19	Sweep visual de altura y paleta en todos los charts	Visionary-UI	2h
+Estado del informe: COMPLETO — Sin modificaciones al código.
+Acción requerida: Aprobar el plan de ejecución para que los agentes procedan módulo por módulo.
