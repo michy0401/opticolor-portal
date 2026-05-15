@@ -121,7 +121,7 @@ export async function crearUsuario(input: unknown): Promise<{
 
     return { success: true };
   } catch (error: any) {
-    console.error("Error al crear usuario:", error);
+    console.error("[ERROR][crear-usuario]", error);
     return { success: false, error: "Error interno al crear el usuario." };
   }
 }

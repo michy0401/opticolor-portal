@@ -22,7 +22,7 @@ export async function getSucursalesParaSelector(): Promise<{
     `);
     return { success: true, data: result.recordset };
   } catch (error: any) {
-    console.error("Error al obtener sucursales:", error);
+    console.error("[ERROR][get-sucursales]", error);
     return { success: false, data: [], error: "No se pudieron cargar las sucursales." };
   }
 }

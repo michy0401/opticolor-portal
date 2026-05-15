@@ -106,7 +106,7 @@ export default async function ClinicaPage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[375px]">
+          <div className="h-[500px]">
             <TendenciaExamenesChart data={data.tendencia} />
           </div>
         </CardContent>
@@ -121,7 +121,7 @@ export default async function ClinicaPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[375px]">
+            <div className="h-[500px]">
               <GeneroChart data={data.genero} />
             </div>
           </CardContent>
@@ -134,7 +134,7 @@ export default async function ClinicaPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[375px]">
+            <div className="h-[500px]">
               <EdadChart data={data.edad} />
             </div>
           </CardContent>
@@ -152,7 +152,7 @@ export default async function ClinicaPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[550px]">
+            <div className="h-[500px]">
               <TopSucursalesClinicaChart data={data.topSucursales} />
             </div>
           </CardContent>

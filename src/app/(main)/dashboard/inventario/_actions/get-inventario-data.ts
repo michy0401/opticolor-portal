@@ -228,7 +228,7 @@ export async function getInventarioData(
       },
     };
   } catch (err) {
-    console.error("[getInventarioData]", err);
+    console.error("[ERROR][getInventarioData]", err);
     return { success: false, error: "Error al obtener los datos de inventario." };
   }
 }

@@ -57,7 +57,7 @@ export async function toggleEstadoUsuario(
 
     return { success: true };
   } catch (error: any) {
-    console.error("Error al cambiar estado del usuario:", error);
+    console.error("[ERROR][toggle-estado-usuario]", error);
     return { success: false, error: "Error interno al cambiar el estado." };
   }
 }

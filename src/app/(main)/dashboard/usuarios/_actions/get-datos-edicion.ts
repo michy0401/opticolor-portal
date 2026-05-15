@@ -46,7 +46,7 @@ export async function getDatosEdicion(idUsuario: number): Promise<{
       },
     };
   } catch (error: any) {
-    console.error("Error al obtener datos de edición:", error);
+    console.error("[ERROR][get-datos-edicion]", error);
     return { success: false, data: null, error: "No se pudieron cargar los datos." };
   }
 }

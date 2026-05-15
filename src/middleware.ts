@@ -23,6 +23,9 @@ export default withAuth(
 );
 
 export const config = {
-    // Protegemos todas las rutas excepto las estáticas, API, favicon y la página de login
-    matcher: ["/((?!api|_next/static|_next/image|favicon.ico|login|public).*)"],
+    // Excluye: rutas de API, assets de Next.js (_next/static, _next/image),
+    // favicon y la página de login (evita bucles de redirección).
+    // Los archivos de /public se sirven en rutas raíz (/logo.png) y Next.js
+    // los optimiza antes de llegar al middleware; no necesitan exclusión explícita.
+    matcher: ["/((?!api|_next/static|_next/image|favicon\\.ico|login).*)"],
 };

@@ -114,7 +114,7 @@ export async function cambiarRol(
 
     return { success: true };
   } catch (error: any) {
-    console.error("Error al cambiar rol:", error);
+    console.error("[ERROR][cambiar-rol]", error);
     return { success: false, error: "Error interno al cambiar el rol." };
   }
 }

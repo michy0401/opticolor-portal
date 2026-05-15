@@ -172,7 +172,7 @@ export async function getEficienciaData(
       },
     };
   } catch (err) {
-    console.error("[getEficienciaData]", err);
+    console.error("[ERROR][getEficienciaData]", err);
     return { success: false, error: "Error al obtener los datos de eficiencia de órdenes." };
   }
 }

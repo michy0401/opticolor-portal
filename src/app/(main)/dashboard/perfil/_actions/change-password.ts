@@ -61,7 +61,7 @@ export async function changePassword(formData: FormData) {
             )
           `);
       } catch (err) {
-        console.error("Error al registrar auditoría de fallo:", err);
+        console.error("[ERROR][change-password] auditoría de fallo", err);
       }
     };
 
@@ -153,7 +153,7 @@ export async function changePassword(formData: FormData) {
       throw e; // Lanzamos para que lo capture el catch principal y audite el error SQL
     }
   } catch (error: any) {
-    console.error("Error changing password:", error);
+    console.error("[ERROR][change-password]", error);
     const msg = "Ha ocurrido un error inesperado al cambiar la contraseña.";
     
     try {
@@ -184,7 +184,7 @@ export async function changePassword(formData: FormData) {
           `);
       }
     } catch (e2) {
-      console.error("Fallo al auditar el error crítico:", e2);
+      console.error("[ERROR][change-password] auditoría crítica", e2);
     }
 
     return { success: false, error: msg };
@@ -246,14 +246,14 @@ export async function verifyCurrentPassword(formData: FormData) {
             )
           `);
       } catch (err) {
-        console.error("Error al registrar auditoría de intento fallido:", err);
+        console.error("[ERROR][change-password] auditoría de intento", err);
       }
       return { success: false, error: "La contraseña actual es incorrecta." };
     }
 
     return { success: true };
   } catch (error) {
-    console.error("Error al verificar contraseña:", error);
+    console.error("[ERROR][change-password] verificación", error);
     return { success: false, error: "Error interno al verificar la contraseña." };
   }
 }

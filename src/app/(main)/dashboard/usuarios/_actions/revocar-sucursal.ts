@@ -51,7 +51,7 @@ export async function revocarSucursal(
 
     return { success: true };
   } catch (error: any) {
-    console.error("Error al revocar sucursal:", error);
+    console.error("[ERROR][revocar-sucursal]", error);
     return { success: false, error: "Error interno al revocar la sucursal." };
   }
 }

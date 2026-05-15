@@ -27,8 +27,8 @@ const fetchMarcasGrupos = unstable_cache(
       ORDER BY Marca
     `);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows: Array<{ Marca: string; Segmento_Comercial: string }> = res.recordset.map((r: any) => ({
+    type DimProductoRow = { Marca: string; Segmento_Comercial: string };
+    const rows = (res.recordset as DimProductoRow[]).map((r) => ({
       Marca:              String(r.Marca),
       Segmento_Comercial: String(r.Segmento_Comercial),
     }));
@@ -57,7 +57,7 @@ export async function getMarcasGrupos(): Promise<{
     const data = await fetchMarcasGrupos();
     return { success: true, data };
   } catch (err) {
-    console.error("[getMarcasGrupos]", err);
+    console.error("[ERROR][getMarcasGrupos]", err);
     return { success: false, error: "Error al obtener filtros." };
   }
 }

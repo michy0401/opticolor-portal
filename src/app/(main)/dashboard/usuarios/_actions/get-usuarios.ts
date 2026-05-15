@@ -37,7 +37,7 @@ export async function getUsuarios(): Promise<{
     `);
     return { success: true, data: result.recordset };
   } catch (error: any) {
-    console.error("Error al obtener usuarios:", error);
+    console.error("[ERROR][get-usuarios]", error);
     return { success: false, data: [], error: "No se pudieron cargar los usuarios." };
   }
 }

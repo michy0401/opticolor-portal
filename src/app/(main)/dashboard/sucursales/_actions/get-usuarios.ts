@@ -23,7 +23,7 @@ export async function getUsuariosBySucursal(
 
     return { success: true, data: result.recordset };
   } catch (error: any) {
-    console.error("Error fetching usuarios por sucursal:", error);
+    console.error("[ERROR][get-usuarios-sucursal]", error);
     return { success: false, data: [], error: "Error al obtener usuarios." };
   }
 }

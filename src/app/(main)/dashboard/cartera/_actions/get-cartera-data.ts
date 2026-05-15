@@ -257,7 +257,7 @@ export async function getCarteraData(
       },
     };
   } catch (err) {
-    console.error("[getCarteraData]", err);
+    console.error("[ERROR][getCarteraData]", err);
     return { success: false, error: "Error al obtener los datos de cartera y saldos." };
   }
 }

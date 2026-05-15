@@ -257,7 +257,7 @@ export async function getClinicaData(
       },
     };
   } catch (err) {
-    console.error("[getClinicaData]", err);
+    console.error("[ERROR][getClinicaData]", err);
     return { success: false, error: "Error al obtener los datos de clínica." };
   }
 }

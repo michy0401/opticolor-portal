@@ -83,7 +83,7 @@ export async function asignarSucursal(
 
     return { success: true };
   } catch (error: any) {
-    console.error("Error al asignar sucursal:", error);
+    console.error("[ERROR][asignar-sucursal]", error);
     return { success: false, error: "Error interno al asignar la sucursal." };
   }
 }

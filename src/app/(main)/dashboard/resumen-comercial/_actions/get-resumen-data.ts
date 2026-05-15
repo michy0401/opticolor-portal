@@ -303,7 +303,7 @@ export async function getResumenData(
       },
     };
   } catch (err) {
-    console.error("[getResumenData]", err);
+    console.error("[ERROR][getResumenData]", err);
     return { success: false, error: "Error al obtener los datos del resumen comercial." };
   }
 }

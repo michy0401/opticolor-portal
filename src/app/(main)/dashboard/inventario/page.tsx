@@ -86,7 +86,6 @@ export default async function InventarioPage({
           fullValue={kpis.stockFisico.toLocaleString("en-US")}
           subtitle="Snapshot · hasta hoy"
           iconName="archive"
-          color="slate"
           highlight
         />
         <KpiCard
@@ -95,21 +94,18 @@ export default async function InventarioPage({
           fullValue={formatCurrency(kpis.capitalInvertido)}
           subtitle="Snapshot · hasta hoy"
           iconName="dollar-sign"
-          color="blue"
         />
         <KpiCard
           title="Unidades Vendidas"
           value={formatCompactNumber(kpis.unidadesVendidas)}
           fullValue={kpis.unidadesVendidas.toLocaleString("en-US")}
           iconName="trending-up"
-          color="emerald"
         />
         <KpiCard
           title="UPT"
           value={upt.toFixed(2)}
           subtitle="Unidades por ticket"
           iconName="bar-chart-2"
-          color="violet"
         />
         <KpiCard
           title="ASP"
@@ -117,7 +113,6 @@ export default async function InventarioPage({
           fullValue={formatCurrency(asp)}
           subtitle="Precio promedio de venta"
           iconName="tag"
-          color="amber"
         />
       </div>
 

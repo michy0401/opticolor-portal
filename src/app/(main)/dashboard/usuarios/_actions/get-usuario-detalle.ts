@@ -119,7 +119,7 @@ export async function getUsuarioDetalle(idUsuario: number): Promise<{
       },
     };
   } catch (error: any) {
-    console.error("Error al obtener detalle de usuario:", error);
+    console.error("[ERROR][get-usuario-detalle]", error);
     return { success: false, data: null, error: "No se pudo cargar el usuario." };
   }
 }

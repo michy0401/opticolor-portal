@@ -23,7 +23,7 @@ export async function getRoles(): Promise<{
     `);
     return { success: true, data: result.recordset };
   } catch (error: any) {
-    console.error("Error al obtener roles:", error);
+    console.error("[ERROR][get-roles]", error);
     return { success: false, data: [], error: "No se pudieron cargar los roles." };
   }
 }
