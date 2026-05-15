@@ -9,6 +9,7 @@ import {
   Legend,
 } from "recharts";
 import type { GeneroExamen } from "../_actions/get-clinica-data";
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 
 interface Props {
   data: GeneroExamen[];
@@ -57,15 +58,18 @@ function ChartTooltip({
 export function GeneroChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-[350px]">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
   const total = data.reduce((acc, curr) => acc + curr.total_examenes, 0);
 
   return (
+    <SafeChartContainer height="h-[350px]">
     <ResponsiveContainer width="100%" height="100%">
       <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
         <Pie
@@ -91,6 +95,7 @@ export function GeneroChart({ data }: Props) {
           wrapperStyle={{ fontSize: "12px", paddingTop: "20px" }}
         />
       </PieChart>
-    </ResponsiveContainer>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

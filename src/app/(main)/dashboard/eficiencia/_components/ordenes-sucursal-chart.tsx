@@ -11,6 +11,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { OrdenesSucursal } from "../_actions/get-eficiencia-data";
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 import { formatCompactNumber } from "@/lib/utils";
 
 interface Props {
@@ -58,9 +59,11 @@ function ChartTooltip({
 export function OrdenesSucursalChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-[500px]">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
@@ -69,60 +72,62 @@ export function OrdenesSucursalChart({ data }: Props) {
   const promedio = data.length > 0 ? totalVolumen / data.length : 0;
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart
-        data={data}
-        layout="vertical"
-        margin={{ top: 20, right: 40, left: 80, bottom: 20 }}
-      >
-        <CartesianGrid
-          strokeDasharray="3 3"
-          horizontal={true}
-          vertical={false}
-          stroke="hsl(var(--border))"
-          strokeOpacity={0.6}
-        />
-        <XAxis
-          type="number"
-          tickFormatter={(value) => formatCompactNumber(value)}
-          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-          tickLine={false}
-          axisLine={false}
-          tickMargin={10}
-        />
-        <YAxis
-          dataKey="nombre_sucursal"
-          type="category"
-          tickFormatter={truncateLabel}
-          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-          tickLine={false}
-          axisLine={false}
-          width={80}
-        />
-        <Tooltip
-          cursor={{ fill: "hsl(var(--muted))", opacity: 0.2 }}
-          content={<ChartTooltip />}
-        />
-        <ReferenceLine
-          x={promedio}
-          stroke="hsl(var(--destructive))"
-          strokeDasharray="3 3"
-          strokeOpacity={0.8}
-          label={{
-            position: "top",
-            value: `Promedio: ${formatCompactNumber(promedio)}`,
-            fill: "hsl(var(--destructive))",
-            fontSize: 10,
-          }}
-        />
-        <Bar
-          dataKey="volumen_ordenes"
-          name="Volumen Órdenes"
-          fill="var(--chart-2)"
-          radius={[0, 4, 4, 0]}
-          barSize={24}
-        />
-      </BarChart>
-    </ResponsiveContainer>
+    <SafeChartContainer height="h-[500px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={data}
+          layout="vertical"
+          margin={{ top: 20, right: 40, left: 80, bottom: 20 }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 3"
+            horizontal={true}
+            vertical={false}
+            stroke="hsl(var(--border))"
+            strokeOpacity={0.6}
+          />
+          <XAxis
+            type="number"
+            tickFormatter={(value) => formatCompactNumber(value)}
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+          />
+          <YAxis
+            dataKey="nombre_sucursal"
+            type="category"
+            tickFormatter={truncateLabel}
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tickLine={false}
+            axisLine={false}
+            width={80}
+          />
+          <Tooltip
+            cursor={{ fill: "hsl(var(--muted))", opacity: 0.2 }}
+            content={<ChartTooltip />}
+          />
+          <ReferenceLine
+            x={promedio}
+            stroke="hsl(var(--destructive))"
+            strokeDasharray="3 3"
+            strokeOpacity={0.8}
+            label={{
+              position: "top",
+              value: `Promedio: ${formatCompactNumber(promedio)}`,
+              fill: "hsl(var(--destructive))",
+              fontSize: 10,
+            }}
+          />
+          <Bar
+            dataKey="volumen_ordenes"
+            name="Volumen Órdenes"
+            fill="var(--chart-2)"
+            radius={[0, 4, 4, 0]}
+            barSize={24}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

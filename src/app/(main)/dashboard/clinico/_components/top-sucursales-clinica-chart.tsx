@@ -11,6 +11,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { SucursalExamen } from "../_actions/get-clinica-data";
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 import { formatCompactNumber } from "@/lib/utils";
 
 interface Props {
@@ -56,9 +57,11 @@ function ChartTooltip({
 export function TopSucursalesClinicaChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-[500px]">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
@@ -67,6 +70,7 @@ export function TopSucursalesClinicaChart({ data }: Props) {
   const promedio = data.length > 0 ? total / data.length : 0;
 
   return (
+    <SafeChartContainer height="h-[500px]">
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
         data={data}
@@ -123,6 +127,7 @@ export function TopSucursalesClinicaChart({ data }: Props) {
           barSize={16}
         />
       </BarChart>
-    </ResponsiveContainer>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

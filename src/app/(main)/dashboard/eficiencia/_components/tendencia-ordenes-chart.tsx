@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import type { TendenciaOrden } from "../_actions/get-eficiencia-data";
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 import { formatCompactNumber } from "@/lib/utils";
 
 interface Props {
@@ -50,52 +51,56 @@ function ChartTooltip({
 export function TendenciaOrdenesChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-72">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart
-        data={data}
-        margin={{ top: 20, right: 30, left: 10, bottom: 20 }}
-      >
-        <CartesianGrid
-          strokeDasharray="3 3"
-          horizontal={true}
-          vertical={false}
-          stroke="hsl(var(--border))"
-          strokeOpacity={0.6}
-        />
-        <XAxis
-          dataKey="mes_nombre"
-          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-          tickLine={false}
-          axisLine={false}
-          tickMargin={10}
-        />
-        <YAxis
-          tickFormatter={(value) => formatCompactNumber(value)}
-          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-          tickLine={false}
-          axisLine={false}
-          tickMargin={10}
-        />
-        <Tooltip
-          cursor={{ stroke: "hsl(var(--muted))", strokeWidth: 2 }}
-          content={<ChartTooltip />}
-        />
-        <Line
-          type="linear"
-          dataKey="volumen_ordenes"
-          stroke="var(--chart-1)"
-          strokeWidth={3}
-          dot={{ r: 4, fill: "var(--background)", strokeWidth: 2 }}
-          activeDot={{ r: 6, strokeWidth: 0 }}
-        />
-      </LineChart>
-    </ResponsiveContainer>
+    <SafeChartContainer height="h-72">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart
+          data={data}
+          margin={{ top: 20, right: 30, left: 10, bottom: 20 }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 3"
+            horizontal={true}
+            vertical={false}
+            stroke="hsl(var(--border))"
+            strokeOpacity={0.6}
+          />
+          <XAxis
+            dataKey="mes_nombre"
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+          />
+          <YAxis
+            tickFormatter={(value) => formatCompactNumber(value)}
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+          />
+          <Tooltip
+            cursor={{ stroke: "hsl(var(--muted))", strokeWidth: 2 }}
+            content={<ChartTooltip />}
+          />
+          <Line
+            type="linear"
+            dataKey="volumen_ordenes"
+            stroke="var(--chart-1)"
+            strokeWidth={3}
+            dot={{ r: 4, fill: "var(--background)", strokeWidth: 2 }}
+            activeDot={{ r: 6, strokeWidth: 0 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

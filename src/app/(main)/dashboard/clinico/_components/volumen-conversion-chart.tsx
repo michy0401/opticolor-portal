@@ -12,6 +12,7 @@ import {
   Legend,
 } from "recharts";
 import type { VolumenConversion } from "../_actions/get-clinica-data";
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 import { formatCompactNumber } from "@/lib/utils";
 
 interface Props {
@@ -62,13 +63,16 @@ function ChartTooltip({
 export function VolumenConversionChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-[350px]">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
   return (
+    <SafeChartContainer height="h-[350px]">
     <ResponsiveContainer width="100%" height="100%">
       <ComposedChart
         data={data}
@@ -149,6 +153,7 @@ export function VolumenConversionChart({ data }: Props) {
           activeDot={{ r: 6, strokeWidth: 0 }}
         />
       </ComposedChart>
-    </ResponsiveContainer>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import type { TendenciaExamen } from "../_actions/get-clinica-data";
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 import { formatCompactNumber } from "@/lib/utils";
 
 interface Props {
@@ -48,13 +49,16 @@ function ChartTooltip({
 export function TendenciaExamenesChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-72">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
   return (
+    <SafeChartContainer height="h-72">
     <ResponsiveContainer width="100%" height="100%">
       <LineChart
         data={data}
@@ -94,6 +98,7 @@ export function TendenciaExamenesChart({ data }: Props) {
           activeDot={{ r: 6, strokeWidth: 0 }}
         />
       </LineChart>
-    </ResponsiveContainer>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 import type { VentaDiaria } from "../_actions/get-resumen-data";
 
 interface Props {
@@ -65,13 +66,16 @@ function ChartTooltip({
 export function VentasChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-[350px]">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
   return (
+    <SafeChartContainer height="h-[350px]">
     <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={data} margin={{ top: 8, right: 16, left: 4, bottom: 4 }}>
         <CartesianGrid
@@ -140,6 +144,7 @@ export function VentasChart({ data }: Props) {
           activeDot={{ r: 6, strokeWidth: 0 }}
         />
       </ComposedChart>
-    </ResponsiveContainer>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

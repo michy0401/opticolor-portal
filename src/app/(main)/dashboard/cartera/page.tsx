@@ -109,10 +109,8 @@ export default async function CarteraPage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-72">
             <GapCobroChart data={data.gapCobro} />
-          </div>
-        </CardContent>
+          </CardContent>
       </Card>
 
       {/* ── Fila 3: Mix de Ventas y Cartera por Sucursal ────────── */}
@@ -124,9 +122,7 @@ export default async function CarteraPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[500px]">
-              <MixVentasChart data={data.mixVentas} />
-            </div>
+            <MixVentasChart data={data.mixVentas} />
           </CardContent>
         </Card>
 
@@ -137,9 +133,7 @@ export default async function CarteraPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[500px]">
-              <CarteraSucursalChart data={data.carteraSucursal} />
-            </div>
+            <CarteraSucursalChart data={data.carteraSucursal} />
           </CardContent>
         </Card>
       </div>

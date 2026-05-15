@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import type { GapCobro } from "../_actions/get-cartera-data";
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 
 interface Props {
   data: GapCobro[];
@@ -62,13 +63,16 @@ function ChartTooltip({
 export function GapCobroChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-72">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
   return (
+    <SafeChartContainer height="h-72">
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data} margin={{ top: 8, right: 16, left: 4, bottom: 4 }}>
         <defs>
@@ -123,6 +127,7 @@ export function GapCobroChart({ data }: Props) {
           activeDot={{ r: 5, strokeWidth: 0 }}
         />
       </AreaChart>
-    </ResponsiveContainer>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import type { MixVenta } from "../_actions/get-cartera-data";
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 
 interface Props {
   data: MixVenta[];
@@ -82,15 +83,18 @@ function ChartTooltip({
 export function MixVentasChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-[500px]">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
   const totalVenta = data.reduce((acc, curr) => acc + curr.venta_neta, 0);
 
   return (
+    <SafeChartContainer height="h-[500px]">
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
         data={data}
@@ -129,6 +133,7 @@ export function MixVentasChart({ data }: Props) {
           barSize={24}
         />
       </BarChart>
-    </ResponsiveContainer>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import type { CarteraSucursal } from "../_actions/get-cartera-data";
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 
 interface Props {
   data: CarteraSucursal[];
@@ -60,13 +61,16 @@ function ChartTooltip({
 export function CarteraSucursalChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-[500px]">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
   return (
+    <SafeChartContainer height="h-[500px]">
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
         data={data}
@@ -108,6 +112,7 @@ export function CarteraSucursalChart({ data }: Props) {
           barSize={24}
         />
       </BarChart>
-    </ResponsiveContainer>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

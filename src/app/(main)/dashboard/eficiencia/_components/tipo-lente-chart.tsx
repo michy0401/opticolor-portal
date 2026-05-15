@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import type { TipoLenteDetalle } from "../_actions/get-eficiencia-data";
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 import { formatCompactNumber } from "@/lib/utils";
 
 interface Props {
@@ -66,58 +67,62 @@ function ChartTooltip({
 export function TipoLenteChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-[500px]">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
   const totalVolumen = data.reduce((acc, curr) => acc + curr.volumen_ordenes, 0);
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart
-        data={data}
-        layout="horizontal"
-        margin={{ top: 20, right: 30, left: 10, bottom: 40 }}
-      >
-        <CartesianGrid
-          strokeDasharray="3 3"
-          horizontal={true}
-          vertical={false}
-          stroke="hsl(var(--border))"
-          strokeOpacity={0.6}
-        />
-        <XAxis
-          dataKey="tipo_lente_descripcion"
-          type="category"
-          tickFormatter={truncateLabel}
-          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-          tickLine={false}
-          axisLine={false}
-          angle={-45}
-          textAnchor="end"
-        />
-        <YAxis
-          type="number"
-          tickFormatter={(value) => formatCompactNumber(value)}
-          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-          tickLine={false}
-          axisLine={false}
-          tickMargin={10}
-        />
-        <Tooltip
-          cursor={{ fill: "hsl(var(--muted))", opacity: 0.2 }}
-          content={<ChartTooltip totalVolumen={totalVolumen} />}
-        />
-        <Bar
-          dataKey="volumen_ordenes"
-          name="Volumen Órdenes"
-          fill="var(--chart-1)"
-          radius={[4, 4, 0, 0]}
-          barSize={40}
-        />
-      </BarChart>
-    </ResponsiveContainer>
+    <SafeChartContainer height="h-[500px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={data}
+          layout="horizontal"
+          margin={{ top: 20, right: 30, left: 10, bottom: 40 }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 3"
+            horizontal={true}
+            vertical={false}
+            stroke="hsl(var(--border))"
+            strokeOpacity={0.6}
+          />
+          <XAxis
+            dataKey="tipo_lente_descripcion"
+            type="category"
+            tickFormatter={truncateLabel}
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tickLine={false}
+            axisLine={false}
+            angle={-45}
+            textAnchor="end"
+          />
+          <YAxis
+            type="number"
+            tickFormatter={(value) => formatCompactNumber(value)}
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+          />
+          <Tooltip
+            cursor={{ fill: "hsl(var(--muted))", opacity: 0.2 }}
+            content={<ChartTooltip totalVolumen={totalVolumen} />}
+          />
+          <Bar
+            dataKey="volumen_ordenes"
+            name="Volumen Órdenes"
+            fill="var(--chart-1)"
+            radius={[4, 4, 0, 0]}
+            barSize={40}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

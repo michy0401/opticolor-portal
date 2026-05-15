@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import type { EdadExamen } from "../_actions/get-clinica-data";
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 import { formatCompactNumber } from "@/lib/utils";
 
 interface Props {
@@ -57,15 +58,18 @@ function ChartTooltip({
 export function EdadChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-[350px]">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
   const total = data.reduce((acc, curr) => acc + curr.total_examenes, 0);
 
   return (
+    <SafeChartContainer height="h-[350px]">
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
         data={data}
@@ -108,6 +112,7 @@ export function EdadChart({ data }: Props) {
           barSize={40}
         />
       </BarChart>
-    </ResponsiveContainer>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

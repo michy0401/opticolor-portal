@@ -94,10 +94,8 @@ export default async function EficienciaPage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-72">
             <TendenciaOrdenesChart data={data.tendencia} />
-          </div>
-        </CardContent>
+          </CardContent>
       </Card>
 
       {/* ── Fila 3: Detalle por Tipo y Órdenes por Sucursal ────────── */}
@@ -109,9 +107,7 @@ export default async function EficienciaPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[500px]">
-              <TipoLenteChart data={data.tipoLente} />
-            </div>
+            <TipoLenteChart data={data.tipoLente} />
           </CardContent>
         </Card>
 
@@ -122,9 +118,7 @@ export default async function EficienciaPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[500px]">
-              <OrdenesSucursalChart data={data.ordenesSucursal} />
-            </div>
+            <OrdenesSucursalChart data={data.ordenesSucursal} />
           </CardContent>
         </Card>
       </div>

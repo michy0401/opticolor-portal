@@ -2,6 +2,7 @@
 
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
 
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 import { formatCurrency } from "@/lib/utils";
 import type { GrupoMix } from "../_actions/get-inventario-data";
 
@@ -114,23 +115,27 @@ function TreemapCell(props: {
 export function TreemapChart({ data }: Props) {
   if (!data.length) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Sin datos para el período seleccionado
-      </div>
+      <SafeChartContainer height="h-[500px]">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Sin datos para el período seleccionado
+        </div>
+      </SafeChartContainer>
     );
   }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <Treemap
-        data={data}
-        dataKey="size"
-        aspectRatio={4 / 3}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        content={<TreemapCell />}
-      >
-        <Tooltip content={<TreemapTooltip />} />
-      </Treemap>
-    </ResponsiveContainer>
+    <SafeChartContainer height="h-[500px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <Treemap
+          data={data}
+          dataKey="size"
+          aspectRatio={4 / 3}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          content={<TreemapCell />}
+        >
+          <Tooltip content={<TreemapTooltip />} />
+        </Treemap>
+      </ResponsiveContainer>
+    </SafeChartContainer>
   );
 }

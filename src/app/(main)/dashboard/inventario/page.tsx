@@ -137,10 +137,8 @@ export default async function InventarioPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[500px]">
-              <DispersionChart data={data.marcasDetalle} />
-            </div>
-          </CardContent>
+            <DispersionChart data={data.marcasDetalle} />
+        </CardContent>
         </Card>
       </div>
 
@@ -153,9 +151,7 @@ export default async function InventarioPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[500px]">
-              <RankingMarcasChart data={data.marcasDetalle} />
-            </div>
+            <RankingMarcasChart data={data.marcasDetalle} />
           </CardContent>
         </Card>
 
@@ -166,9 +162,7 @@ export default async function InventarioPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[500px]">
-              <TreemapChart data={data.gruposMix} />
-            </div>
+            <TreemapChart data={data.gruposMix} />
           </CardContent>
         </Card>
       </div>

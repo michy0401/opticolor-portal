@@ -2,6 +2,7 @@
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
+import { SafeChartContainer } from "@/components/ui/safe-chart-container";
 import { formatCurrency } from "@/lib/utils";
 import type { MedioPago } from "../_actions/get-resumen-data";
 
@@ -86,7 +87,7 @@ export function MediosPagoChart({ data }: Props) {
   return (
     <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
       {/* Donut — anillo más grueso y prominente */}
-      <div className="h-52 w-52 shrink-0">
+      <SafeChartContainer height="h-52" className="w-52 shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -110,7 +111,7 @@ export function MediosPagoChart({ data }: Props) {
             />
           </PieChart>
         </ResponsiveContainer>
-      </div>
+      </SafeChartContainer>
 
       {/* Leyenda: nombre + porcentaje */}
       <div className="min-w-0 flex-1">
