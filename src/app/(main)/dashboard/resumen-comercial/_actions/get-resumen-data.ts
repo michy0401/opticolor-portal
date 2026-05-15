@@ -1,8 +1,8 @@
 "use server";
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getConnection } from "@/lib/db";
+import { buildSucursalFilter } from "@/lib/sql-helpers";
+import { getAuthContext } from "@/lib/get-auth-context";
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -50,39 +50,15 @@ type Params = {
   sucursalId: number | null;
 };
 
-// ─── Filtro de sucursal reutilizable ─────────────────────────────────────────
-
-function sucursalFilter(tableAlias = "") {
-  const col = tableAlias ? `${tableAlias}.id_sucursal` : "id_sucursal";
-  return `
-    AND (
-      (
-        @isSupervisor = 1
-        AND ${col} IN (
-          SELECT id_sucursal
-          FROM dbo.Seguridad_Usuarios_Sucursales
-          WHERE id_usuario = @userId AND esta_vigente = 1
-        )
-      )
-      OR (
-        @isSupervisor = 0
-        AND (@sucursalId IS NULL OR ${col} = @sucursalId)
-      )
-    )`;
-}
-
 // ─── Acción principal ─────────────────────────────────────────────────────────
 
 export async function getResumenData(
   params: Params,
 ): Promise<{ success: boolean; data?: ResumenData; error?: string }> {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return { success: false, error: "No autorizado" };
-
-    const isSupervisor =
-      session.user.nivel === 4 || session.user.rol === "SUPERVISOR";
-    const userId = parseInt(session.user.id, 10);
+    const auth = await getAuthContext();
+    if (!auth) return { success: false, error: "No autorizado" };
+    const { userId, isSupervisor } = auth;
     const { startDate, endDate, sucursalId } = params;
 
     const pool = await getConnection();
@@ -142,7 +118,7 @@ export async function getResumenData(
         SELECT ISNULL(SUM(monto_neto), 0) AS valor
         FROM dbo.KPI_Inf1_Venta_Neta
         WHERE fecha_factura BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // KPI: Venta Neta YTD — siempre 1-Ene → hoy, independiente del filtro de Navbar
@@ -150,7 +126,7 @@ export async function getResumenData(
         SELECT ISNULL(SUM(monto_neto), 0) AS valor
         FROM dbo.KPI_Inf1_Venta_Neta
         WHERE fecha_factura BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // KPI: Proyección — fórmula proporcional: (monto_neto / dia_hoy_gmt4) * dias_del_mes
@@ -164,7 +140,7 @@ export async function getResumenData(
         ), 0) AS valor
         FROM dbo.KPI_Inf1_Proyeccion_Venta_Neta
         WHERE fecha_factura BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // KPI: Total Cobrado
@@ -172,7 +148,7 @@ export async function getResumenData(
         SELECT ISNULL(SUM(importe_neto), 0) AS valor
         FROM dbo.KPI_Inf1_Total_Cobrado
         WHERE fecha_completa BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // KPI: Ticket Promedio (vista sin columna de fecha; filtra por anio + mes_nro)
@@ -183,7 +159,7 @@ export async function getResumenData(
         ) AS valor
         FROM dbo.KPI_Inf1_Ticket_Promedio
         WHERE anio * 100 + mes_nro BETWEEN @startYM AND @endYM
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // KPI: Cantidad de Pedidos
@@ -191,7 +167,7 @@ export async function getResumenData(
         SELECT COUNT(*) AS valor
         FROM dbo.Fact_Pedidos
         WHERE CAST(fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // KPI: Total Exámenes
@@ -199,7 +175,7 @@ export async function getResumenData(
         SELECT COUNT(*) AS valor
         FROM dbo.Fact_Examenes
         WHERE CAST(fecha_examen_completa AS DATE) BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // KPI: Clientes Nuevos
@@ -207,7 +183,7 @@ export async function getResumenData(
         SELECT COUNT(DISTINCT fp.id_cliente) AS valor
         FROM dbo.Fact_Pedidos fp
         WHERE CAST(fp.fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
-          ${sucursalFilter("fp")}
+          ${buildSucursalFilter("fp")}
           AND NOT EXISTS (
             SELECT 1
             FROM dbo.Fact_Pedidos fp2
@@ -225,7 +201,7 @@ export async function getResumenData(
           COUNT(*)                                   AS trafico
         FROM dbo.Fact_Ventas_Analitico
         WHERE fecha_factura BETWEEN @startDate AND @endDate
-          ${sucursalFilter()}
+          ${buildSucursalFilter()}
         GROUP BY YEAR(fecha_factura), MONTH(fecha_factura)
         ORDER BY YEAR(fecha_factura), MONTH(fecha_factura) ASC
       `),
@@ -243,7 +219,7 @@ export async function getResumenData(
             ISNULL(SUM(monto_neto), 0)  AS ventaNeta
           FROM dbo.KPI_Inf1_Venta_Neta
           WHERE fecha_factura BETWEEN @startDate AND @endDate
-            ${sucursalFilter()}
+            ${buildSucursalFilter()}
           GROUP BY id_sucursal
         ) vn
         INNER JOIN dbo.Dim_Sucursales ds ON ds.id_sucursal = vn.idSucursal
@@ -257,7 +233,7 @@ export async function getResumenData(
             ), 0) AS estimado
           FROM dbo.KPI_Inf1_Proyeccion_Venta_Neta
           WHERE fecha_factura BETWEEN @startDate AND @endDate
-            ${sucursalFilter()}
+            ${buildSucursalFilter()}
           GROUP BY id_sucursal
         ) pv ON pv.id_sucursal = vn.idSucursal
         ORDER BY vn.ventaNeta DESC
@@ -270,7 +246,7 @@ export async function getResumenData(
           ISNULL(SUM(importe_neto), 0)     AS monto
         FROM dbo.KPI_Inf1_Mix_Medios_Pago
         WHERE fecha_completa BETWEEN @startDate AND @endDate
-          ${sucursalFilter()}
+          ${buildSucursalFilter()}
         GROUP BY metodo_pago
         ORDER BY monto DESC
       `),

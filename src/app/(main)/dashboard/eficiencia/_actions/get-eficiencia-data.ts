@@ -1,8 +1,8 @@
 "use server";
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getConnection } from "@/lib/db";
+import { buildSucursalFilter } from "@/lib/sql-helpers";
+import { getAuthContext } from "@/lib/get-auth-context";
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -42,39 +42,15 @@ type Params = {
   sucursalId: number | null;
 };
 
-// ─── Filtro de sucursal reutilizable ─────────────────────────────────────────
-
-function sucursalFilter(tableAlias = "") {
-  const col = tableAlias ? `${tableAlias}.id_sucursal` : "id_sucursal";
-  return `
-    AND (
-      (
-        @isSupervisor = 1
-        AND ${col} IN (
-          SELECT id_sucursal
-          FROM dbo.Seguridad_Usuarios_Sucursales
-          WHERE id_usuario = @userId AND esta_vigente = 1
-        )
-      )
-      OR (
-        @isSupervisor = 0
-        AND (@sucursalId IS NULL OR ${col} = @sucursalId)
-      )
-    )`;
-}
-
 // ─── Acción principal ─────────────────────────────────────────────────────────
 
 export async function getEficienciaData(
   params: Params,
 ): Promise<{ success: boolean; data?: EficienciaData; error?: string }> {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return { success: false, error: "No autorizado" };
-
-    const isSupervisor =
-      session.user.nivel === 4 || session.user.rol === "SUPERVISOR";
-    const userId = parseInt(session.user.id, 10);
+    const auth = await getAuthContext();
+    if (!auth) return { success: false, error: "No autorizado" };
+    const { userId, isSupervisor } = auth;
     const { startDate, endDate, sucursalId } = params;
 
     const pool = await getConnection();
@@ -101,7 +77,7 @@ export async function getEficienciaData(
         SELECT ISNULL(COUNT(id_pedido), 0) AS valor
         FROM dbo.Fact_Eficiencia_Ordenes
         WHERE CAST(fecha_pedido AS DATE) = CAST(GETDATE() AT TIME ZONE 'UTC' AT TIME ZONE 'SA Western Standard Time' AS DATE)
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // 2. Volumen y KPIs de todo el periodo
@@ -115,7 +91,7 @@ export async function getEficienciaData(
           END AS promedio_ordenes_diarias
         FROM dbo.Fact_Eficiencia_Ordenes
         WHERE CAST(fecha_pedido AS DATE) BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // 3. Tendencia (Últimos 12 meses respecto a endDate)
@@ -128,7 +104,7 @@ export async function getEficienciaData(
         FROM dbo.Fact_Eficiencia_Ordenes
         WHERE CAST(fecha_pedido AS DATE) >= DATEADD(month, -12, CAST(@endDate AS DATE))
           AND CAST(fecha_pedido AS DATE) <= @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
         GROUP BY mes_nombre, YEAR(fecha_pedido), MONTH(fecha_pedido)
         ORDER BY YEAR(fecha_pedido) ASC, MONTH(fecha_pedido) ASC
       `),
@@ -141,7 +117,7 @@ export async function getEficienciaData(
           ISNULL(SUM(monto_total), 0) AS monto_total
         FROM dbo.Fact_Eficiencia_Ordenes
         WHERE CAST(fecha_pedido AS DATE) BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
         GROUP BY tipo_lente_descripcion
         ORDER BY volumen_ordenes DESC
       `),
@@ -154,7 +130,7 @@ export async function getEficienciaData(
         FROM dbo.Fact_Eficiencia_Ordenes f
         INNER JOIN dbo.Dim_Sucursales ds ON f.id_sucursal = ds.id_sucursal
         WHERE CAST(f.fecha_pedido AS DATE) BETWEEN @startDate AND @endDate
-        ${sucursalFilter("f")}
+        ${buildSucursalFilter("f")}
         GROUP BY ds.nombre_sucursal
         ORDER BY volumen_ordenes DESC
       `),

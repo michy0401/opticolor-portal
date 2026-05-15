@@ -1,8 +1,8 @@
 "use server";
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getConnection } from "@/lib/db";
+import { buildSucursalFilter } from "@/lib/sql-helpers";
+import { getAuthContext } from "@/lib/get-auth-context";
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -54,39 +54,15 @@ type Params = {
   sucursalId: number | null;
 };
 
-// ─── Filtro de sucursal reutilizable ─────────────────────────────────────────
-
-function sucursalFilter(tableAlias = "") {
-  const col = tableAlias ? `${tableAlias}.id_sucursal` : "id_sucursal";
-  return `
-    AND (
-      (
-        @isSupervisor = 1
-        AND ${col} IN (
-          SELECT id_sucursal
-          FROM dbo.Seguridad_Usuarios_Sucursales
-          WHERE id_usuario = @userId AND esta_vigente = 1
-        )
-      )
-      OR (
-        @isSupervisor = 0
-        AND (@sucursalId IS NULL OR ${col} = @sucursalId)
-      )
-    )`;
-}
-
 // ─── Acción principal ─────────────────────────────────────────────────────────
 
 export async function getCarteraData(
   params: Params,
 ): Promise<{ success: boolean; data?: CarteraData; error?: string }> {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return { success: false, error: "No autorizado" };
-
-    const isSupervisor =
-      session.user.nivel === 4 || session.user.rol === "SUPERVISOR";
-    const userId = parseInt(session.user.id, 10);
+    const auth = await getAuthContext();
+    if (!auth) return { success: false, error: "No autorizado" };
+    const { userId, isSupervisor } = auth;
     const { startDate, endDate, sucursalId } = params;
 
     const pool = await getConnection();
@@ -125,7 +101,7 @@ export async function getCarteraData(
         SELECT ISNULL(SUM(monto_total), 0) AS valor
         FROM dbo.KPI_Inf3_Monto_Pedidos
         WHERE CAST(fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // 2. Recaudado
@@ -133,7 +109,7 @@ export async function getCarteraData(
         SELECT ISNULL(SUM(monto_pagado), 0) AS valor
         FROM dbo.KPI_Inf3_Recaudado_Pedidos
         WHERE CAST(fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // 3. Saldo Pendiente (Snapshot histórico)
@@ -141,7 +117,7 @@ export async function getCarteraData(
         SELECT ROUND(COALESCE(SUM(saldo_pendiente), 0), 2) AS valor
         FROM dbo.KPI_Inf3_Saldo_Pendiente
         WHERE CAST(fecha_pedido_completa AS DATE) <= @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // 4. Pedidos por Liquidar (Snapshot histórico)
@@ -149,7 +125,7 @@ export async function getCarteraData(
         SELECT COUNT(DISTINCT id_pedido) AS valor
         FROM dbo.KPI_Inf3_Pedidos_Liquidar
         WHERE CAST(fecha_pedido_completa AS DATE) <= @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // 5. % Primer Abono
@@ -157,7 +133,7 @@ export async function getCarteraData(
         SELECT ISNULL(COUNT(DISTINCT CASE WHEN monto_pagado > 0 THEN id_pedido END) * 100.0 / NULLIF(COUNT(DISTINCT id_pedido), 0), 0) AS valor
         FROM dbo.Fact_Pedidos
         WHERE CAST(fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // 6. % Pago Total
@@ -165,7 +141,7 @@ export async function getCarteraData(
         SELECT ISNULL(COUNT(DISTINCT CASE WHEN saldo_pendiente <= 0 THEN id_pedido END) * 100.0 / NULLIF(COUNT(DISTINCT id_pedido), 0), 0) AS valor
         FROM dbo.Fact_Pedidos
         WHERE CAST(fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
       `),
 
       // 7. GAP de Cobro (Tendencia - Últimos 12 meses)
@@ -179,7 +155,7 @@ export async function getCarteraData(
         FROM dbo.Fact_Pedidos
         WHERE CAST(fecha_pedido_completa AS DATE) >= DATEADD(month, -12, CAST(@endDate AS DATE))
           AND CAST(fecha_pedido_completa AS DATE) <= @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
         GROUP BY mes_pedido_nombre, YEAR(fecha_pedido_completa), MONTH(fecha_pedido_completa)
         ORDER BY YEAR(fecha_pedido_completa) ASC, MONTH(fecha_pedido_completa) ASC
       `),
@@ -192,7 +168,7 @@ export async function getCarteraData(
           COUNT(DISTINCT id_factura) AS facturas
         FROM dbo.Fact_Ventas_por_Categoria
         WHERE CAST(fecha_factura AS DATE) BETWEEN @startDate AND @endDate
-        ${sucursalFilter()}
+        ${buildSucursalFilter()}
         GROUP BY categoria_agrupada
         ORDER BY venta_neta DESC
       `),
@@ -205,7 +181,7 @@ export async function getCarteraData(
         FROM dbo.KPI_Inf3_Saldo_Pendiente k
         LEFT JOIN dbo.Dim_Sucursales ds ON k.id_sucursal = ds.id_sucursal
         WHERE CAST(k.fecha_pedido_completa AS DATE) <= @endDate
-        ${sucursalFilter("k")}
+        ${buildSucursalFilter("k")}
         GROUP BY ds.nombre_sucursal
         ORDER BY saldo_pendiente DESC
       `),
@@ -222,7 +198,7 @@ export async function getCarteraData(
         INNER JOIN dbo.Dim_Clientes dc ON fp.id_cliente = dc.id_cliente
         INNER JOIN dbo.Dim_Sucursales ds ON fp.id_sucursal = ds.id_sucursal
         WHERE CAST(fp.fecha_pedido_completa AS DATE) <= @endDate
-        ${sucursalFilter("fp")}
+        ${buildSucursalFilter("fp")}
         GROUP BY ds.nombre_sucursal, dc.nombre_completo
         HAVING ISNULL(SUM(fp.saldo_pendiente), 0) > 0
         ORDER BY saldo_pendiente DESC

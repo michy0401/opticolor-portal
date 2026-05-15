@@ -1,8 +1,8 @@
 "use server";
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getConnection } from "@/lib/db";
+import { buildSucursalFilter } from "@/lib/sql-helpers";
+import { getAuthContext } from "@/lib/get-auth-context";
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -45,39 +45,15 @@ type Params = {
 // Dim_Productos usa PascalCase: Marca, Segmento_Comercial
 const EXCLUSION = `AND dp.Segmento_Comercial NOT IN ('LENTES', 'TRATAMIENTOS')`;
 
-// ─── Filtro de sucursal ───────────────────────────────────────────────────────
-
-function sucursalFilter(tableAlias = "") {
-  const col = tableAlias ? `${tableAlias}.id_sucursal` : "id_sucursal";
-  return `
-    AND (
-      (
-        @isSupervisor = 1
-        AND ${col} IN (
-          SELECT id_sucursal
-          FROM dbo.Seguridad_Usuarios_Sucursales
-          WHERE id_usuario = @userId AND esta_vigente = 1
-        )
-      )
-      OR (
-        @isSupervisor = 0
-        AND (@sucursalId IS NULL OR ${col} = @sucursalId)
-      )
-    )`;
-}
-
 // ─── Acción principal ─────────────────────────────────────────────────────────
 
 export async function getInventarioData(
   params: Params,
 ): Promise<{ success: boolean; data?: InventarioData; error?: string }> {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return { success: false, error: "No autorizado" };
-
-    const isSupervisor =
-      session.user.nivel === 4 || session.user.rol === "SUPERVISOR";
-    const userId = parseInt(session.user.id, 10);
+    const auth = await getAuthContext();
+    if (!auth) return { success: false, error: "No autorizado" };
+    const { userId, isSupervisor } = auth;
     const { startDate, endDate, sucursalId, marcaFilter, grupoFilter } = params;
 
     const pool = await getConnection();
@@ -131,7 +107,7 @@ export async function getInventarioData(
           ${EXCLUSION}
           ${marcaSql}
           ${grupoSql}
-          ${sucursalFilter("fi")}
+          ${buildSucursalFilter("fi")}
       `),
 
       // ── Facturas únicas en el período — denominador del UPT ────────────────
@@ -139,7 +115,7 @@ export async function getInventarioData(
         SELECT COUNT(DISTINCT id_factura) AS valor
         FROM dbo.KPI_Inf1_Cantidad_Facturas
         WHERE fecha_factura BETWEEN @startDate AND @endDate
-          ${sucursalFilter()}
+          ${buildSucursalFilter()}
       `),
 
       // ── Flujo por marca: unidades vendidas + venta neta ────────────────────
@@ -157,7 +133,7 @@ export async function getInventarioData(
           ${marcaSql}
           ${grupoSql}
           AND dp.Marca IS NOT NULL AND dp.Marca <> ''
-          ${sucursalFilter("fvd")}
+          ${buildSucursalFilter("fvd")}
         GROUP BY dp.Marca
         ORDER BY SUM(fvd.cantidad) DESC
       `),
@@ -174,7 +150,7 @@ export async function getInventarioData(
           ${marcaSql}
           ${grupoSql}
           AND dp.Marca IS NOT NULL AND dp.Marca <> ''
-          ${sucursalFilter("fi")}
+          ${buildSucursalFilter("fi")}
         GROUP BY dp.Marca
       `),
 
@@ -189,7 +165,7 @@ export async function getInventarioData(
           ${EXCLUSION}
           ${marcaSql}
           AND dp.Segmento_Comercial IS NOT NULL AND dp.Segmento_Comercial <> ''
-          ${sucursalFilter("fvd")}
+          ${buildSucursalFilter("fvd")}
         GROUP BY dp.Segmento_Comercial
         ORDER BY SUM(fvd.monto_final_transaccional) DESC
       `),
