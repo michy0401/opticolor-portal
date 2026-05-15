@@ -1,8 +1,7 @@
 "use server";
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getConnection } from "@/lib/db";
+import { getAuthContext } from "@/lib/get-auth-context";
 
 export type InventarioFilters = {
   marcas: string[];
@@ -15,8 +14,8 @@ export async function getMarcasGrupos(): Promise<{
   error?: string;
 }> {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return { success: false, error: "No autorizado" };
+    const auth = await getAuthContext();
+    if (!auth) return { success: false, error: "No autorizado" };
 
     const pool = await getConnection();
 

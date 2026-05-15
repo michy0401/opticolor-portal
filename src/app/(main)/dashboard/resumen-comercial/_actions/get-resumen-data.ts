@@ -75,65 +75,58 @@ export async function getResumenData(
       String(nowDate.getDate()).padStart(2, "0"),
     ].join("-");
 
-    // req: rango filtrado por el usuario + parámetros de auth
+    // req: todos los parámetros necesarios (rango filtrado + YTD + auth)
     const req = () =>
       pool
         .request()
         .input("startDate", startDate)
         .input("endDate", endDate)
+        .input("ytdStart", ytdStart)
+        .input("ytdEnd", ytdEnd)
         .input("startYM", startYM)
         .input("endYM", endYM)
         .input("sucursalId", sucursalId)
         .input("userId", userId)
         .input("isSupervisor", isSupervisor ? 1 : 0);
 
-    // reqYTD: rango YTD fijo + parámetros de auth (sin startYM/endYM)
-    const reqYTD = () =>
-      pool
-        .request()
-        .input("startDate", ytdStart)
-        .input("endDate", ytdEnd)
-        .input("sucursalId", sucursalId)
-        .input("userId", userId)
-        .input("isSupervisor", isSupervisor ? 1 : 0);
-
-    // ── Consultas en paralelo ────────────────────────────────────────────────
+    // ── 8 consultas en paralelo (reducidas desde 11) ─────────────────────────
+    //
+    // Consolidación A: ventaNeta + ventaNetaYTD → ventasKpisRes
+    //   Mismo scan de KPI_Inf1_Venta_Neta, dos SUM(CASE WHEN ...) condicionales.
+    // Consolidación B: cantidadPedidos + clientesNuevos → pedidosClientesRes
+    //   Mismo scan de Fact_Pedidos, dos columnas calculadas.
+    // Consolidación C: proyeccion + cobrado → proyeccionCobradoRes
+    //   Vistas distintas unidas con UNION ALL y columna discriminadora.
+    // Eliminado: factory reqYTD() — los parámetros ytdStart/ytdEnd viven en req().
 
     const [
-      ventaNetaRes,
-      ventaNetaYTDRes,
-      proyeccionRes,
-      cobradoRes,
+      ventasKpisRes,
+      proyeccionCobradoRes,
       ticketRes,
-      pedidosRes,
+      pedidosClientesRes,
       examenesRes,
-      clientesNuevosRes,
       ventasDiariasRes,
       topSucursalesRes,
       mediosPagoRes,
     ] = await Promise.all([
 
-      // KPI: Venta Neta filtrada (interna, para calcular proyeccionPct en el UI)
+      // [A] KPI: Venta Neta filtrada + Venta Neta YTD — un solo scan
       req().query(`
-        SELECT ISNULL(SUM(monto_neto), 0) AS valor
+        SELECT
+          ISNULL(SUM(CASE WHEN fecha_factura BETWEEN @startDate AND @endDate THEN monto_neto END), 0) AS ventaNeta,
+          ISNULL(SUM(CASE WHEN fecha_factura BETWEEN @ytdStart  AND @ytdEnd  THEN monto_neto END), 0) AS ventaNetaYTD
         FROM dbo.KPI_Inf1_Venta_Neta
-        WHERE fecha_factura BETWEEN @startDate AND @endDate
+        WHERE (fecha_factura BETWEEN @startDate AND @endDate
+            OR fecha_factura BETWEEN @ytdStart  AND @ytdEnd)
         ${buildSucursalFilter()}
       `),
 
-      // KPI: Venta Neta YTD — siempre 1-Ene → hoy, independiente del filtro de Navbar
-      reqYTD().query(`
-        SELECT ISNULL(SUM(monto_neto), 0) AS valor
-        FROM dbo.KPI_Inf1_Venta_Neta
-        WHERE fecha_factura BETWEEN @startDate AND @endDate
-        ${buildSucursalFilter()}
-      `),
-
-      // KPI: Proyección — fórmula proporcional: (monto_neto / dia_hoy_gmt4) * dias_del_mes
+      // [C] KPI: Proyección + Total Cobrado — UNION ALL con discriminador
+      // Proyección: fórmula proporcional (monto_neto / dia_hoy_gmt4) * dias_del_mes
       // Meses pasados: dia_hoy_gmt4 = dias_del_mes → ratio = 1 (sin extrapolación).
       // Mes actual:    dia_hoy_gmt4 < dias_del_mes → extrapolación lineal al cierre.
       req().query(`
-        SELECT ISNULL(SUM(
+        SELECT 'proyeccion' AS kpi, ISNULL(SUM(
           CAST(monto_neto AS DECIMAL(18,4))
           / NULLIF(CAST(dia_hoy_gmt4 AS DECIMAL(18,4)), 0)
           * CAST(dias_del_mes AS DECIMAL(18,4))
@@ -141,11 +134,8 @@ export async function getResumenData(
         FROM dbo.KPI_Inf1_Proyeccion_Venta_Neta
         WHERE fecha_factura BETWEEN @startDate AND @endDate
         ${buildSucursalFilter()}
-      `),
-
-      // KPI: Total Cobrado
-      req().query(`
-        SELECT ISNULL(SUM(importe_neto), 0) AS valor
+        UNION ALL
+        SELECT 'cobrado', ISNULL(SUM(importe_neto), 0)
         FROM dbo.KPI_Inf1_Total_Cobrado
         WHERE fecha_completa BETWEEN @startDate AND @endDate
         ${buildSucursalFilter()}
@@ -162,12 +152,29 @@ export async function getResumenData(
         ${buildSucursalFilter()}
       `),
 
-      // KPI: Cantidad de Pedidos
+      // [B] KPI: Cantidad de Pedidos + Clientes Nuevos — un solo scan de Fact_Pedidos
+      // CTE para pre-calcular es_nuevo: SQL Server prohíbe NOT EXISTS dentro de
+      // funciones de agregado (error 130), por lo que el flag se evalúa primero
+      // en la CTE y el COUNT externo solo opera sobre el escalar 0/1.
       req().query(`
-        SELECT COUNT(*) AS valor
-        FROM dbo.Fact_Pedidos
-        WHERE CAST(fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
-        ${buildSucursalFilter()}
+        WITH pedidos_periodo AS (
+          SELECT
+            fp.id_cliente,
+            CASE
+              WHEN NOT EXISTS (
+                SELECT 1 FROM dbo.Fact_Pedidos fp2
+                WHERE fp2.id_cliente = fp.id_cliente
+                  AND CAST(fp2.fecha_pedido_completa AS DATE) < @startDate
+              ) THEN 1 ELSE 0
+            END AS es_nuevo
+          FROM dbo.Fact_Pedidos fp
+          WHERE CAST(fp.fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
+          ${buildSucursalFilter("fp")}
+        )
+        SELECT
+          COUNT(*)                                                    AS cantidadPedidos,
+          COUNT(DISTINCT CASE WHEN es_nuevo = 1 THEN id_cliente END)  AS clientesNuevos
+        FROM pedidos_periodo
       `),
 
       // KPI: Total Exámenes
@@ -178,29 +185,15 @@ export async function getResumenData(
         ${buildSucursalFilter()}
       `),
 
-      // KPI: Clientes Nuevos
-      req().query(`
-        SELECT COUNT(DISTINCT fp.id_cliente) AS valor
-        FROM dbo.Fact_Pedidos fp
-        WHERE CAST(fp.fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
-          ${buildSucursalFilter("fp")}
-          AND NOT EXISTS (
-            SELECT 1
-            FROM dbo.Fact_Pedidos fp2
-            WHERE fp2.id_cliente = fp.id_cliente
-              AND CAST(fp2.fecha_pedido_completa AS DATE) < @startDate
-          )
-      `),
-
       // Gráfico: Tendencia anual — siempre YTD para mostrar estacionalidad completa
-      reqYTD().query(`
+      req().query(`
         SELECT
           YEAR(fecha_factura)                        AS anio,
           MONTH(fecha_factura)                       AS mes_nro,
           ISNULL(SUM(monto_final_transaccional), 0)  AS ventaNeta,
           COUNT(*)                                   AS trafico
         FROM dbo.Fact_Ventas_Analitico
-        WHERE fecha_factura BETWEEN @startDate AND @endDate
+        WHERE fecha_factura BETWEEN @ytdStart AND @ytdEnd
           ${buildSucursalFilter()}
         GROUP BY YEAR(fecha_factura), MONTH(fecha_factura)
         ORDER BY YEAR(fecha_factura), MONTH(fecha_factura) ASC
@@ -252,6 +245,16 @@ export async function getResumenData(
       `),
     ]);
 
+    // ── Extracción de resultados consolidados ────────────────────────────────
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ventasRow = ventasKpisRes.recordset[0] as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pcRows    = proyeccionCobradoRes.recordset as any[];
+    const proyRow   = pcRows.find((r) => r.kpi === "proyeccion");
+    const cobRow    = pcRows.find((r) => r.kpi === "cobrado");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pedidosRow = pedidosClientesRes.recordset[0] as any;
+
     // ── Porcentajes con 1 decimal ────────────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rawMedios: Array<{ medioPago: string; monto: number }> = mediosPagoRes.recordset.map((r: any) => ({
@@ -269,22 +272,16 @@ export async function getResumenData(
       success: true,
       data: {
         kpis: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ventaNetaYTD:    Number((ventaNetaYTDRes.recordset[0] as any)?.valor ?? 0),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ventaNeta:       Number((ventaNetaRes.recordset[0] as any)?.valor ?? 0),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          proyeccion:      Number((proyeccionRes.recordset[0] as any)?.valor ?? 0),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          totalCobrado:    Number((cobradoRes.recordset[0] as any)?.valor ?? 0),
+          ventaNetaYTD:    Number(ventasRow?.ventaNetaYTD   ?? 0),
+          ventaNeta:       Number(ventasRow?.ventaNeta       ?? 0),
+          proyeccion:      Number(proyRow?.valor             ?? 0),
+          totalCobrado:    Number(cobRow?.valor              ?? 0),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ticketPromedio:  Number((ticketRes.recordset[0] as any)?.valor ?? 0),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          cantidadPedidos: Number((pedidosRes.recordset[0] as any)?.valor ?? 0),
+          cantidadPedidos: Number(pedidosRow?.cantidadPedidos ?? 0),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           totalExamenes:   Number((examenesRes.recordset[0] as any)?.valor ?? 0),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          clientesNuevos:  Number((clientesNuevosRes.recordset[0] as any)?.valor ?? 0),
+          clientesNuevos:  Number(pedidosRow?.clientesNuevos  ?? 0),
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ventasDiarias: ventasDiariasRes.recordset.map((r: any) => {

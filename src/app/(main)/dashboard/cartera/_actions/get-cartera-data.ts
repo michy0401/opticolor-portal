@@ -128,19 +128,28 @@ export async function getCarteraData(
         ${buildSucursalFilter()}
       `),
 
-      // 5. % Primer Abono
+      // 5. % Cobro Inmediato — vista pre-calculada (saldo_pendiente <= 0 / total pedidos)
+      // Re-agrega SUM(pedidos_cobrados)/SUM(total_pedidos) para ponderar correctamente
+      // múltiples periodos; evita el promedio simple de porcentajes (matemáticamente incorrecto).
       req().query(`
-        SELECT ISNULL(COUNT(DISTINCT CASE WHEN monto_pagado > 0 THEN id_pedido END) * 100.0 / NULLIF(COUNT(DISTINCT id_pedido), 0), 0) AS valor
-        FROM dbo.Fact_Pedidos
-        WHERE CAST(fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
+        SELECT ISNULL(
+          SUM(pedidos_cobrados) * 100.0 / NULLIF(SUM(total_pedidos), 0),
+          0
+        ) AS valor
+        FROM dbo.KPI_Inf3_Pct_Cobro_Inmediato
+        WHERE anio_pedido * 100 + mes_pedido_nro BETWEEN @startYM AND @endYM
         ${buildSucursalFilter()}
       `),
 
-      // 6. % Pago Total
+      // 6. % Nivel de Abono — vista pre-calculada (SUM(monto_pagado) / SUM(monto_total))
+      // Ratio monetario ponderado; re-agrega los campos base para mantener la paridad con DAX.
       req().query(`
-        SELECT ISNULL(COUNT(DISTINCT CASE WHEN saldo_pendiente <= 0 THEN id_pedido END) * 100.0 / NULLIF(COUNT(DISTINCT id_pedido), 0), 0) AS valor
-        FROM dbo.Fact_Pedidos
-        WHERE CAST(fecha_pedido_completa AS DATE) BETWEEN @startDate AND @endDate
+        SELECT ISNULL(
+          SUM(monto_pagado) * 100.0 / NULLIF(SUM(monto_total), 0),
+          0
+        ) AS valor
+        FROM dbo.KPI_Inf3_Pct_Nivel_Abono
+        WHERE anio_pedido * 100 + mes_pedido_nro BETWEEN @startYM AND @endYM
         ${buildSucursalFilter()}
       `),
 
