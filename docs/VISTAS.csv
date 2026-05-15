@@ -605,3 +605,11 @@ Vw_Usuario_Accesos;password_hash;nvarchar;510;0;" CREATE VIEW [dbo].[Vw_Usuario_
 Vw_Usuario_Accesos;esta_activo;bit;-;1;" CREATE VIEW [dbo].[Vw_Usuario_Accesos] AS SELECT     U.id_usuario,     U.email,     U.nombre_completo,     U.password_hash,     U.esta_activo,     R.nombre_rol,     R.nivel_jerarquico FROM Seguridad_Usuarios U INNER JOIN Seguridad_Usuarios_Roles UR ON UR.id_usuario = U.id_usuario AND UR.esta_vigente = 1 INNER JOIN Seguridad_Roles R ON R.id_rol = UR.id_rol WHERE U.esta_activo = 1; "
 Vw_Usuario_Accesos;nombre_rol;nvarchar;100;0;" CREATE VIEW [dbo].[Vw_Usuario_Accesos] AS SELECT     U.id_usuario,     U.email,     U.nombre_completo,     U.password_hash,     U.esta_activo,     R.nombre_rol,     R.nivel_jerarquico FROM Seguridad_Usuarios U INNER JOIN Seguridad_Usuarios_Roles UR ON UR.id_usuario = U.id_usuario AND UR.esta_vigente = 1 INNER JOIN Seguridad_Roles R ON R.id_rol = UR.id_rol WHERE U.esta_activo = 1; "
 Vw_Usuario_Accesos;nivel_jerarquico;int;-;1;" CREATE VIEW [dbo].[Vw_Usuario_Accesos] AS SELECT     U.id_usuario,     U.email,     U.nombre_completo,     U.password_hash,     U.esta_activo,     R.nombre_rol,     R.nivel_jerarquico FROM Seguridad_Usuarios U INNER JOIN Seguridad_Usuarios_Roles UR ON UR.id_usuario = U.id_usuario AND UR.esta_vigente = 1 INNER JOIN Seguridad_Roles R ON R.id_rol = UR.id_rol WHERE U.esta_activo = 1; "
+
+Dash_Eficiencia_Agregado;id_sucursal;int;-;0;Tabla física de resumen pre-calculado. Clave de filtro de acceso por sucursal.
+Dash_Eficiencia_Agregado;fecha_pedido;date;-;0;Fecha de la orden (DATE, SARGable). Usada para filtros de rango y snapshot del día.
+Dash_Eficiencia_Agregado;periodo;varchar;7;0;Período en formato YYYY-MM. Reemplaza mes_nombre para GROUP BY de tendencia mensual.
+Dash_Eficiencia_Agregado;tipo_lente;varchar;100;1;Descripción del tipo de lente. Reemplaza tipo_lente_descripcion de Fact_Eficiencia_Ordenes.
+Dash_Eficiencia_Agregado;estado_pedido;varchar;50;1;Estado de la orden (ej. ENTREGADO, PENDIENTE). Disponible para filtros futuros.
+Dash_Eficiencia_Agregado;total_ordenes;int;-;0;Conteo pre-calculado de órdenes. Reemplaza COUNT(id_pedido) de la fuente original.
+Dash_Eficiencia_Agregado;monto_total;decimal;-;1;Suma pre-calculada del monto de las órdenes del grupo.

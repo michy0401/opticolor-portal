@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_cache } from "next/cache";
+
 import { getConnection } from "@/lib/db";
 import { buildSucursalFilter } from "@/lib/sql-helpers";
 import { getAuthContext } from "@/lib/get-auth-context";
@@ -41,16 +43,16 @@ type Params = {
   grupoFilter: string | null;
 };
 
+type FetchParams = Params & { userId: number; isSupervisor: boolean };
+
 // ─── Tipos de fila DB (privados) ─────────────────────────────────────────────
 
-// Fila devuelta por la query fusionada de inventario (GROUPING SETS).
-// marca = NULL  → fila de TOTAL (GROUPING(dp.Marca) = 1)
-// marca = valor → fila de desglose por marca
-type InvFusedRow = {
-  marca: string | null;
+// Fila devuelta por Dash_Inventario_Agregado — totales pre-calculados por marca.
+// No hay fila de total global: se deriva sumando en TypeScript O(n).
+type InvAggRow = {
+  marca: string;
   stockFisico: number;
   capitalInvertido: number;
-  esTotal: number; // 1 si es la fila de total, 0 si es por marca
 };
 
 // Fila devuelta por la query fusionada de ventas (Marca + Grupo en un solo scan).
@@ -68,116 +70,92 @@ type ValorRow = { valor: number };
 // Dim_Productos usa PascalCase: Marca, Segmento_Comercial
 const EXCLUSION = `AND dp.Segmento_Comercial NOT IN ('LENTES', 'TRATAMIENTOS')`;
 
-// ─── Acción principal ─────────────────────────────────────────────────────────
-
-export async function getInventarioData(
-  params: Params,
-): Promise<{ success: boolean; data?: InventarioData; error?: string }> {
-  try {
-    const auth = await getAuthContext();
-    if (!auth) return { success: false, error: "No autorizado" };
-    const { userId, isSupervisor } = auth;
-    const { startDate, endDate, sucursalId, marcaFilter, grupoFilter } = params;
+// ─── Cache interno — datos por usuario, sucursal, rango y filtros ─────────────
+// La guarda de auth vive fuera del cache: unstable_cache no puede capturar
+// APIs dinámicas (headers/cookies) como getAuthContext().
+// La clave incluye todos los argumentos serializados → cada combinación única
+// tiene su propio slot; userId/isSupervisor aseguran aislamiento entre usuarios.
+const fetchInventarioData = unstable_cache(
+  async (params: FetchParams): Promise<InventarioData> => {
+    const { startDate, endDate, sucursalId, marcaFilter, grupoFilter, userId, isSupervisor } = params;
 
     const pool = await getConnection();
 
-    // Filtros opcionales — sólo se inyectan cuando el usuario eligió un valor
+    // Filtros opcionales para la tabla agregada (columnas nativas: marca, grupo)
+    const marcaSqlAgg = marcaFilter ? "AND da.marca = @marcaFilter" : "";
+    const grupoSqlAgg = grupoFilter ? "AND da.grupo = @grupoFilter" : "";
+
+    // Filtro opcional para Dash_Ventas_Resumen (columna via JOIN Dim_Productos)
     const marcaSql = marcaFilter ? "AND dp.Marca = @marcaFilter" : "";
-    const grupoSql = grupoFilter ? "AND dp.Segmento_Comercial = @grupoFilter" : "";
 
     const req = () => {
       let r = pool
         .request()
-        .input("startDate", startDate)
-        .input("endDate",   endDate)
-        .input("sucursalId", sucursalId)
-        .input("userId",     userId)
+        .input("startDate",    startDate)
+        .input("endDate",      endDate)
+        .input("sucursalId",   sucursalId)
+        .input("userId",       userId)
         .input("isSupervisor", isSupervisor ? 1 : 0);
       if (marcaFilter) r = r.input("marcaFilter", marcaFilter);
       if (grupoFilter) r = r.input("grupoFilter", grupoFilter);
       return r;
     };
 
-    // ── 3 queries en paralelo (reducido desde 5) ─────────────────────────────
+    // ── 3 queries en paralelo ────────────────────────────────────────────────
     //
-    // OPTIMIZACIONES APLICADAS:
+    //  [1] Dash_Inventario_Agregado — totales pre-calculados por marca/grupo.
+    //      Lectura directa sobre el snapshot más reciente ≤ @endDate (DATE).
+    //      Sin JOIN, sin GROUPING SETS, sin derived tables.
+    //      El total global se deriva en TypeScript sumando las filas.
     //
-    //  [1] SARGability total:
-    //      · fecha_factura en Fact_Ventas_Detalle es tipo DATE (ya convertida
-    //        por la vista). Los parámetros @startDate/@endDate son strings ISO,
-    //        SQL Server los convierte implícitamente a DATE → índice en uso.
-    //      · fecha_foto_sistema en Fact_Inventario es datetime2. En lugar de
-    //        CAST(fi.fecha_foto_sistema AS DATE) <= @endDate (non-SARGable),
-    //        usamos una subquery que halla la MAX fecha de snapshot ≤ @endDate
-    //        y filtramos fi.fecha_foto_sistema exactamente por ese valor. Así
-    //        el predicado recae sobre el datetime2 puro → índice utilizable.
+    //  [2] Dash_Ventas_Resumen — GROUPING SETS ((Marca), (Segmento_Comercial))
+    //      devuelve filas de marca y de grupo en un solo scan y un solo JOIN.
     //
-    //  [2] Snapshot eficiente (Fact_Inventario):
-    //      Subquery @snapshotDate = MAX(CAST(fecha_foto_sistema AS DATE)) ≤ @endDate.
-    //      Solo escaneamos las filas de ESA fecha exacta, no toda la historia.
-    //
-    //  [3] Fusión Inventario (Stock Total + Stock por Marca en una sola pasada):
-    //      GROUPING SETS ((dp.Marca), ()) → una sola query devuelve:
-    //        · La fila TOTAL (GROUPING(dp.Marca)=1, marca=NULL)
-    //        · Las filas por marca
-    //      El split se hace en TypeScript O(n), costo cero en la red.
-    //
-    //  [4] Fusión Ventas (Marca + Grupo en una sola pasada):
-    //      GROUPING SETS ((dp.Marca), (dp.Segmento_Comercial)) → un solo JOIN
-    //      con Fact_Ventas_Detalle devuelve filas para ambos niveles:
-    //        · Filas de marca: grupo = NULL
-    //        · Filas de grupo: marca = NULL
-    //      Eliminamos completamente la segunda query y el segundo JOIN.
-    //
-    //  [5] Payload limpio: solo SUM de las columnas que el frontend consume.
+    //  [3] KPI_Inf1_Cantidad_Facturas — denominador del UPT.
 
     const [
-      inventarioRes,  // Stock total + por marca via GROUPING SETS (snapshot)
+      inventarioRes,  // Stock por marca (Dash_Inventario_Agregado, snapshot)
       ventasRes,      // Ventas por Marca + por Grupo via GROUPING SETS (flujo)
       facturasRes,    // Conteo de facturas únicas (denominador UPT)
     ] = await Promise.all([
 
-      // ── [QUERY 1] Inventario fusionado: Total + Por Marca (snapshot) ────────
+      // ── [QUERY 1] Inventario por Marca (Dash_Inventario_Agregado) ───────────
       //
-      // La subquery interna encuentra el último snapshot disponible en el rango.
-      // El filtro externo usa fi.fecha_foto_sistema (datetime2) comparado con
-      // el inicio y fin del día de esa fecha — completamente SARGable.
+      // Fuente: tabla de totales pre-calculados — sin JOIN con Dim_Productos,
+      // sin GROUPING SETS, sin derived tables. Una lectura directa sobre el
+      // snapshot más reciente ≤ @endDate.
       //
-      // GROUPING SETS ((dp.Marca), ()) produce:
-      //   · esTotal = 0, marca = 'RAYBAN'  → stock de esa marca
-      //   · esTotal = 1, marca = NULL      → stock total
+      // @snapshotDate: MAX(fecha_foto DATE) ≤ @endDate.
+      // El total global (stock + capital) se calcula en TypeScript O(n)
+      // sumando todas las filas por marca — cero round-trips adicionales.
       req().query(`
         DECLARE @snapshotDate DATE = (
-          SELECT MAX(CAST(fi_inner.fecha_foto_sistema AS DATE))
-          FROM dbo.Fact_Inventario fi_inner
-          INNER JOIN dbo.Dim_Productos dp_inner
-            ON fi_inner.id_producto = dp_inner.SK_Producto
-          WHERE fi_inner.fecha_foto_sistema < DATEADD(DAY, 1, CAST(@endDate AS DATE))
-            AND dp_inner.Segmento_Comercial NOT IN ('LENTES', 'TRATAMIENTOS')
-            ${buildSucursalFilter("fi_inner")}
+          SELECT MAX(da_inner.fecha_foto)
+          FROM dbo.Dash_Inventario_Agregado da_inner
+          WHERE da_inner.fecha_foto <= CAST(@endDate AS DATE)
+            AND da_inner.grupo NOT IN ('LENTES', 'TRATAMIENTOS')
+            ${buildSucursalFilter("da_inner")}
         );
 
         SELECT
-          dp.Marca                                        AS marca,
-          ISNULL(SUM(fi.cantidad_disponible),    0)       AS stockFisico,
-          ISNULL(SUM(fi.valor_total_inventario), 0)       AS capitalInvertido,
-          GROUPING(dp.Marca)                              AS esTotal
-        FROM dbo.Fact_Inventario fi
-        INNER JOIN dbo.Dim_Productos dp ON fi.id_producto = dp.SK_Producto
-        WHERE fi.fecha_foto_sistema >= CAST(@snapshotDate AS DATETIME2)
-          AND fi.fecha_foto_sistema <  DATEADD(DAY, 1, CAST(@snapshotDate AS DATETIME2))
-          ${EXCLUSION}
-          ${marcaSql}
-          ${grupoSql}
-          ${buildSucursalFilter("fi")}
-        GROUP BY GROUPING SETS ((dp.Marca), ())
+          da.marca                              AS marca,
+          ISNULL(SUM(da.stock_total),  0)       AS stockFisico,
+          ISNULL(SUM(da.valor_total),  0)       AS capitalInvertido
+        FROM dbo.Dash_Inventario_Agregado da
+        WHERE da.fecha_foto = @snapshotDate
+          AND da.grupo NOT IN ('LENTES', 'TRATAMIENTOS')
+          ${marcaSqlAgg}
+          ${grupoSqlAgg}
+          ${buildSucursalFilter("da")}
+        GROUP BY da.marca
+        ORDER BY SUM(da.stock_total) DESC
       `),
 
       // ── [QUERY 2] Ventas fusionadas: Por Marca + Por Grupo (flujo) ──────────
       //
-      // fecha_factura en Fact_Ventas_Detalle es tipo DATE (la vista ya aplica
-      // CAST(...) AS DATE). Los parámetros ISO 'YYYY-MM-DD' son SARGables
-      // directamente: SQL los trata como DATE sin necesidad de conversión.
+      // Fuente: Dash_Ventas_Resumen (tabla física de resumen, reemplaza la vista
+      // Fact_Ventas_Detalle). fecha_factura es tipo DATE → SARGable con los
+      // parámetros ISO 'YYYY-MM-DD' sin necesidad de conversión explícita.
       //
       // GROUPING SETS ((dp.Marca), (dp.Segmento_Comercial)) produce:
       //   · grupo=NULL, marca='RAYBAN' → ventas de esa marca
@@ -185,21 +163,21 @@ export async function getInventarioData(
       // Un solo JOIN. Un solo round-trip.
       req().query(`
         SELECT
-          dp.Marca                                        AS marca,
-          dp.Segmento_Comercial                           AS grupo,
-          ISNULL(SUM(fvd.cantidad), 0)                    AS unidadesVendidas,
-          ISNULL(SUM(fvd.monto_final_transaccional), 0)   AS ventaNeta
-        FROM dbo.Fact_Ventas_Detalle fvd
-        INNER JOIN dbo.Dim_Productos dp ON fvd.id_producto = dp.SK_Producto
-        WHERE fvd.fecha_factura >= @startDate
-          AND fvd.fecha_factura <= @endDate
+          dp.Marca                                  AS marca,
+          dp.Segmento_Comercial                     AS grupo,
+          ISNULL(SUM(dvr.cantidad), 0)              AS unidadesVendidas,
+          ISNULL(SUM(dvr.monto_total), 0)           AS ventaNeta
+        FROM dbo.Dash_Ventas_Resumen dvr
+        INNER JOIN dbo.Dim_Productos dp ON dvr.id_producto = dp.SK_Producto
+        WHERE dvr.fecha_factura >= @startDate
+          AND dvr.fecha_factura <= @endDate
           ${EXCLUSION}
           ${marcaSql}
           AND dp.Marca IS NOT NULL AND dp.Marca <> ''
           AND dp.Segmento_Comercial IS NOT NULL AND dp.Segmento_Comercial <> ''
-          ${buildSucursalFilter("fvd")}
+          ${buildSucursalFilter("dvr")}
         GROUP BY GROUPING SETS ((dp.Marca), (dp.Segmento_Comercial))
-        ORDER BY SUM(fvd.monto_final_transaccional) DESC
+        ORDER BY SUM(dvr.monto_total) DESC
       `),
 
       // ── [QUERY 3] Facturas únicas — denominador del UPT ────────────────────
@@ -214,13 +192,15 @@ export async function getInventarioData(
 
     // ── Procesamiento TypeScript — costo O(n), cero round-trips adicionales ───
 
-    // [A] Inventario: separar la fila TOTAL de las filas por marca
-    const invRows = inventarioRes.recordset as InvFusedRow[];
-    const invTotal = invRows.find((r) => r.esTotal === 1);
-    const invByMarca = invRows.filter((r) => r.esTotal === 0);
+    // [A] Inventario: todas las filas son por marca (sin fila de total GROUPING SETS).
+    // El total global se deriva sumando en TypeScript — cero round-trips adicionales.
+    const invRows = inventarioRes.recordset as InvAggRow[];
+
+    const stockTotal   = invRows.reduce((acc, r) => acc + Number(r.stockFisico    ?? 0), 0);
+    const capitalTotal = invRows.reduce((acc, r) => acc + Number(r.capitalInvertido ?? 0), 0);
 
     const stockByMarca = new Map(
-      invByMarca.map((r) => [String(r.marca ?? ""), Number(r.stockFisico ?? 0)]),
+      invRows.map((r) => [String(r.marca ?? ""), Number(r.stockFisico ?? 0)]),
     );
 
     // [B] Ventas: separar filas de marca vs. filas de grupo
@@ -260,19 +240,38 @@ export async function getInventarioData(
     }));
 
     return {
-      success: true,
-      data: {
-        kpis: {
-          stockFisico:       Number(invTotal?.stockFisico       ?? 0),
-          capitalInvertido:  Number(invTotal?.capitalInvertido  ?? 0),
-          unidadesVendidas:  unidadesTotal,
-          ventaNetaProducto: ventaNetaTotal,
-          cantidadFacturas:  Number((facturasRes.recordset as ValorRow[])[0]?.valor ?? 0),
-        },
-        marcasDetalle,
-        gruposMix,
+      kpis: {
+        stockFisico:       stockTotal,
+        capitalInvertido:  capitalTotal,
+        unidadesVendidas:  unidadesTotal,
+        ventaNetaProducto: ventaNetaTotal,
+        cantidadFacturas:  Number((facturasRes.recordset as ValorRow[])[0]?.valor ?? 0),
       },
+      marcasDetalle,
+      gruposMix,
     };
+  },
+  ["dash-inventario"],
+  { revalidate: 3600, tags: ["dash-inventario"] },
+);
+
+// ─── Acción principal ─────────────────────────────────────────────────────────
+// La guarda de auth vive fuera del cache: unstable_cache no puede capturar
+// APIs dinámicas (headers/cookies) como getAuthContext().
+
+export async function getInventarioData(
+  params: Params,
+): Promise<{ success: boolean; data?: InventarioData; error?: string }> {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return { success: false, error: "No autorizado" };
+
+    const data = await fetchInventarioData({
+      ...params,
+      userId:       auth.userId,
+      isSupervisor: auth.isSupervisor,
+    });
+    return { success: true, data };
   } catch (err) {
     console.error("[ERROR][getInventarioData]", err);
     return { success: false, error: "Error al obtener los datos de inventario." };

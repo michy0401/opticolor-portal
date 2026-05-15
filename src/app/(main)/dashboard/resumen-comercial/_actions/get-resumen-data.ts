@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_cache } from "next/cache";
+
 import { getConnection } from "@/lib/db";
 import { buildSucursalFilter } from "@/lib/sql-helpers";
 import { getAuthContext } from "@/lib/get-auth-context";
@@ -50,6 +52,8 @@ type Params = {
   sucursalId: number | null;
 };
 
+type FetchParams = Params & { userId: number; isSupervisor: boolean };
+
 // ─── Tipos de fila DB (privados) ─────────────────────────────────────────────
 
 type VentasKpiRow       = { anio: number; mes_nro: number; ventaMensual: number; trafico: number; ventaNeta: number; ventaNetaYTD: number };
@@ -59,16 +63,14 @@ type PedidosClientesRow = { cantidadPedidos: number; clientesNuevos: number };
 type TopSucursalRow     = { idSucursal: number; nombreSucursal: string; ventaNeta: number; estimadoCierre: number };
 type MedioPagoRow       = { medioPago: string; monto: number };
 
-// ─── Acción principal ─────────────────────────────────────────────────────────
-
-export async function getResumenData(
-  params: Params,
-): Promise<{ success: boolean; data?: ResumenData; error?: string }> {
-  try {
-    const auth = await getAuthContext();
-    if (!auth) return { success: false, error: "No autorizado" };
-    const { userId, isSupervisor } = auth;
-    const { startDate, endDate, sucursalId } = params;
+// ─── Cache interno — datos por usuario, sucursal y rango de fechas ───────────
+// La guarda de auth vive fuera del cache: unstable_cache no puede capturar
+// APIs dinámicas (headers/cookies) como getAuthContext().
+// La clave de cache incluye todos los argumentos serializados (userId, isSupervisor,
+// startDate, endDate, sucursalId) → cada combinación única tiene su propio slot.
+const fetchResumenData = unstable_cache(
+  async (params: FetchParams): Promise<ResumenData> => {
+    const { startDate, endDate, sucursalId, userId, isSupervisor } = params;
 
     const pool = await getConnection();
 
@@ -271,37 +273,56 @@ export async function getResumenData(
     }));
 
     return {
-      success: true,
-      data: {
-        kpis: {
-          ventaNetaYTD:    Number(ventasRow?.ventaNetaYTD   ?? 0),
-          ventaNeta:       Number(ventasRow?.ventaNeta       ?? 0),
-          proyeccion:      Number(proyRow?.valor             ?? 0),
-          totalCobrado:    Number(cobRow?.valor              ?? 0),
-          ticketPromedio:  Math.round(Number((ticketRes.recordset as ValorRow[])[0]?.valor ?? 0) * 100) / 100,
-          cantidadPedidos: Number(pedidosRow?.cantidadPedidos ?? 0),
-          totalExamenes:   Number((examenesRes.recordset as ValorRow[])[0]?.valor ?? 0),
-          clientesNuevos:  Number(pedidosRow?.clientesNuevos  ?? 0),
-        },
-        ventasDiarias: ventasRows.map((r) => {
-          const mesNum = Number(r.mes_nro ?? 1);
-          const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-          return {
-            fecha:     `${r.anio}-${String(mesNum).padStart(2, "0")}`,
-            label:     MESES[mesNum - 1] ?? String(mesNum),
-            ventaNeta: Number(r.ventaMensual ?? 0),
-            trafico:   Number(r.trafico ?? 0),
-          };
-        }),
-        topSucursales: (topSucursalesRes.recordset as TopSucursalRow[]).map((r) => ({
-          idSucursal:     Number(r.idSucursal),
-          nombreSucursal: String(r.nombreSucursal ?? ""),
-          ventaNeta:      Number(r.ventaNeta ?? 0),
-          estimadoCierre: Number(r.estimadoCierre ?? 0),
-        })),
-        mediosPago,
+      kpis: {
+        ventaNetaYTD:    Number(ventasRow?.ventaNetaYTD   ?? 0),
+        ventaNeta:       Number(ventasRow?.ventaNeta       ?? 0),
+        proyeccion:      Number(proyRow?.valor             ?? 0),
+        totalCobrado:    Number(cobRow?.valor              ?? 0),
+        ticketPromedio:  Math.round(Number((ticketRes.recordset as ValorRow[])[0]?.valor ?? 0) * 100) / 100,
+        cantidadPedidos: Number(pedidosRow?.cantidadPedidos ?? 0),
+        totalExamenes:   Number((examenesRes.recordset as ValorRow[])[0]?.valor ?? 0),
+        clientesNuevos:  Number(pedidosRow?.clientesNuevos  ?? 0),
       },
+      ventasDiarias: ventasRows.map((r) => {
+        const mesNum = Number(r.mes_nro ?? 1);
+        const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+        return {
+          fecha:     `${r.anio}-${String(mesNum).padStart(2, "0")}`,
+          label:     MESES[mesNum - 1] ?? String(mesNum),
+          ventaNeta: Number(r.ventaMensual ?? 0),
+          trafico:   Number(r.trafico ?? 0),
+        };
+      }),
+      topSucursales: (topSucursalesRes.recordset as TopSucursalRow[]).map((r) => ({
+        idSucursal:     Number(r.idSucursal),
+        nombreSucursal: String(r.nombreSucursal ?? ""),
+        ventaNeta:      Number(r.ventaNeta ?? 0),
+        estimadoCierre: Number(r.estimadoCierre ?? 0),
+      })),
+      mediosPago,
     };
+  },
+  ["dash-ventas"],
+  { revalidate: 3600, tags: ["dash-ventas"] },
+);
+
+// ─── Acción principal ─────────────────────────────────────────────────────────
+// La guarda de auth vive fuera del cache: unstable_cache no puede capturar
+// APIs dinámicas (headers/cookies) como getAuthContext().
+
+export async function getResumenData(
+  params: Params,
+): Promise<{ success: boolean; data?: ResumenData; error?: string }> {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return { success: false, error: "No autorizado" };
+
+    const data = await fetchResumenData({
+      ...params,
+      userId:       auth.userId,
+      isSupervisor: auth.isSupervisor,
+    });
+    return { success: true, data };
   } catch (err) {
     console.error("[ERROR][getResumenData]", err);
     return { success: false, error: "Error al obtener los datos del resumen comercial." };
