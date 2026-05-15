@@ -145,8 +145,8 @@ export async function getEficienciaData(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ordenesHoy: Number((ordenesHoyRes.recordset[0] as any)?.valor ?? 0),
           volumenOrdenes: Number(stats.volumen_ordenes ?? 0),
-          promedioDiario: Number(stats.promedio_ordenes_diarias ?? 0),
-          montoTotal: Number(stats.monto_total ?? 0),
+          promedioDiario: Math.round(Number(stats.promedio_ordenes_diarias ?? 0) * 100) / 100,
+          montoTotal: Math.round(Number(stats.monto_total ?? 0) * 100) / 100,
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         tendencia: tendenciaRes.recordset.map((r: any) => ({

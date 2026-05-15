@@ -194,7 +194,7 @@ export async function getClinicaData(
     const stats = periodoStatsRes.recordset[0] || { total_examenes: 0, convertidos: 0, no_convertidos: 0, promedio_diario: 0 };
     const totalExamenes = Number(stats.total_examenes ?? 0);
     const convertidos = Number(stats.convertidos ?? 0);
-    const pctConversion = totalExamenes > 0 ? (convertidos / totalExamenes) * 100 : 0;
+    const pctConversion = totalExamenes > 0 ? Math.round((convertidos / totalExamenes) * 10000) / 100 : 0;
 
     // Procesar y ordenar edades
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -217,7 +217,7 @@ export async function getClinicaData(
           examenesHoy: Number((examenesHoyRes.recordset[0] as any)?.valor ?? 0),
           totalExamenes,
           pctConversion,
-          promedioDiario: Number(stats.promedio_diario ?? 0),
+          promedioDiario: Math.round(Number(stats.promedio_diario ?? 0) * 100) / 100,
           convertidos,
           noConvertidos: Number(stats.no_convertidos ?? 0),
         },
@@ -230,7 +230,7 @@ export async function getClinicaData(
         volumenConversion: volumenConversionRes.recordset.map((r: any) => {
           const mTotal = Number(r.total_mes ?? 0);
           const mConv = Number(r.convertidos ?? 0);
-          const mPct = mTotal > 0 ? (mConv / mTotal) * 100 : 0;
+          const mPct = mTotal > 0 ? Math.round((mConv / mTotal) * 10000) / 100 : 0;
           return {
             mes_examen_nombre: String(r.mes_examen_nombre ?? ""),
             convertidos: mConv,

@@ -265,7 +265,7 @@ export async function getResumenData(
     const mediosPago: MedioPago[] = rawMedios.map((r) => ({
       ...r,
       porcentaje:
-        montoTotal > 0 ? Math.round((r.monto / montoTotal) * 1000) / 10 : 0,
+        montoTotal > 0 ? Math.round((r.monto / montoTotal) * 10000) / 100 : 0,
     }));
 
     return {
@@ -277,7 +277,7 @@ export async function getResumenData(
           proyeccion:      Number(proyRow?.valor             ?? 0),
           totalCobrado:    Number(cobRow?.valor              ?? 0),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ticketPromedio:  Number((ticketRes.recordset[0] as any)?.valor ?? 0),
+          ticketPromedio:  Math.round(Number((ticketRes.recordset[0] as any)?.valor ?? 0) * 100) / 100,
           cantidadPedidos: Number(pedidosRow?.cantidadPedidos ?? 0),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           totalExamenes:   Number((examenesRes.recordset[0] as any)?.valor ?? 0),

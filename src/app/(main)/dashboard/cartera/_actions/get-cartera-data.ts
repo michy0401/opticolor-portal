@@ -227,9 +227,9 @@ export async function getCarteraData(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           pedidosLiquidar: Number((pedidosLiquidarRes.recordset[0] as any)?.valor ?? 0),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          pctCobroInmediato: Number((pctCobroInmediatoRes.recordset[0] as any)?.valor ?? 0),
+          pctCobroInmediato: Math.round(Number((pctCobroInmediatoRes.recordset[0] as any)?.valor ?? 0) * 100) / 100,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          pctNivelAbono: Number((pctNivelAbonoRes.recordset[0] as any)?.valor ?? 0),
+          pctNivelAbono: Math.round(Number((pctNivelAbonoRes.recordset[0] as any)?.valor ?? 0) * 100) / 100,
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         gapCobro: gapCobroRes.recordset.map((r: any) => ({

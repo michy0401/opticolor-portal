@@ -206,7 +206,7 @@ export async function getInventarioData(
     const gruposMix: GrupoMix[] = rawGrupos.map((r) => ({
       name:       r.grupo,
       size:       r.ventaNeta,
-      porcentaje: totalGrupos > 0 ? Math.round((r.ventaNeta / totalGrupos) * 1000) / 10 : 0,
+      porcentaje: totalGrupos > 0 ? Math.round((r.ventaNeta / totalGrupos) * 10000) / 100 : 0,
     }));
 
     return {
