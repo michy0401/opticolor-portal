@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_cache } from "next/cache";
+
 import { getConnection } from "@/lib/db";
 import { getAuthContext } from "@/lib/get-auth-context";
 
@@ -8,15 +10,10 @@ export type InventarioFilters = {
   grupos: string[];
 };
 
-export async function getMarcasGrupos(): Promise<{
-  success: boolean;
-  data?: InventarioFilters;
-  error?: string;
-}> {
-  try {
-    const auth = await getAuthContext();
-    if (!auth) return { success: false, error: "No autorizado" };
-
+// ─── Cache interno — catálogo global, sin dependencia de usuario ──────────────
+// Un solo slot para toda la app; se invalida con revalidateTag('marcas-grupos-inventory')
+const fetchMarcasGrupos = unstable_cache(
+  async (): Promise<InventarioFilters> => {
     const pool = await getConnection();
 
     // Una sola query devuelve combinaciones únicas Marca × Segmento_Comercial.
@@ -36,10 +33,29 @@ export async function getMarcasGrupos(): Promise<{
       Segmento_Comercial: String(r.Segmento_Comercial),
     }));
 
-    const marcas = [...new Set(rows.map((r) => r.Marca))].sort();
-    const grupos = [...new Set(rows.map((r) => r.Segmento_Comercial))].sort();
+    return {
+      marcas: [...new Set(rows.map((r) => r.Marca))].sort(),
+      grupos: [...new Set(rows.map((r) => r.Segmento_Comercial))].sort(),
+    };
+  },
+  ["marcas-grupos-inventory"],
+  { revalidate: 3600, tags: ["marcas-grupos-inventory"] },
+);
 
-    return { success: true, data: { marcas, grupos } };
+// ─── Acción principal ─────────────────────────────────────────────────────────
+// La guarda de auth vive fuera del cache: unstable_cache no puede capturar
+// APIs dinámicas (headers/cookies) como getAuthContext().
+export async function getMarcasGrupos(): Promise<{
+  success: boolean;
+  data?: InventarioFilters;
+  error?: string;
+}> {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return { success: false, error: "No autorizado" };
+
+    const data = await fetchMarcasGrupos();
+    return { success: true, data };
   } catch (err) {
     console.error("[getMarcasGrupos]", err);
     return { success: false, error: "Error al obtener filtros." };

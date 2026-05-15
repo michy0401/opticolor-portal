@@ -75,11 +75,13 @@ export default async function ClinicaPage({
         <KpiCard
           title="% Conversión"
           value={`${kpis.pctConversion.toFixed(1)}%`}
+          fullValue={`${kpis.pctConversion.toFixed(2)}%`}
           iconName="check-circle"
         />
         <KpiCard
           title="Promedio Diario"
           value={kpis.promedioDiario.toFixed(1)}
+          fullValue={kpis.promedioDiario.toFixed(2)}
           iconName="calendar"
         />
         <KpiCard

@@ -58,6 +58,16 @@ type Params = {
   sucursalId: number | null;
 };
 
+// ─── Tipos de fila DB (privados) ─────────────────────────────────────────────
+
+type ValorRow        = { valor: number };
+type PeriodoStatsRow = { total_examenes: number; convertidos: number; no_convertidos: number; promedio_diario: number };
+type TendenciaRow    = { mes_examen_nombre: string; total_examenes: number };
+type VolumenConvRow  = { mes_examen_nombre: string; convertidos: number; no_convertidos: number; total_mes: number };
+type GeneroRow       = { genero_label: string; total_examenes: number };
+type EdadRow         = { rango_edad_descripcion: string; total_examenes: number };
+type SucursalRow     = { nombre_sucursal: string; total_examenes: number };
+
 // ─── Función auxiliar para ordenar rango de edad ─────────────────────────────
 // Extrae el primer número de una cadena para usarlo como criterio de ordenamiento.
 function extractMinAge(rango: string): number {
@@ -107,13 +117,13 @@ export async function getClinicaData(
 
       // 2. Volumen y KPIs de todo el periodo
       req().query(`
-        SELECT 
+        SELECT
           ISNULL(COUNT(DISTINCT id_examen), 0) AS total_examenes,
           ISNULL(COUNT(DISTINCT CASE WHEN estado_conversion = 'CONVERTIDO' THEN id_examen END), 0) AS convertidos,
           ISNULL(COUNT(DISTINCT CASE WHEN estado_conversion = 'NO CONVERTIDO' THEN id_examen END), 0) AS no_convertidos,
-          CASE WHEN COUNT(DISTINCT CAST(fecha_examen_completa AS DATE)) = 0 
-               THEN 0 
-               ELSE CAST(COUNT(DISTINCT id_examen) AS FLOAT) / COUNT(DISTINCT CAST(fecha_examen_completa AS DATE)) 
+          CASE WHEN COUNT(DISTINCT CAST(fecha_examen_completa AS DATE)) = 0
+               THEN 0
+               ELSE CAST(COUNT(DISTINCT id_examen) AS FLOAT) / COUNT(DISTINCT CAST(fecha_examen_completa AS DATE))
           END AS promedio_diario
         FROM dbo.Fact_Examenes
         WHERE CAST(fecha_examen_completa AS DATE) BETWEEN @startDate AND @endDate
@@ -122,7 +132,7 @@ export async function getClinicaData(
 
       // 3. Tendencia Mensual (12 meses respecto a endDate)
       req().query(`
-        SELECT 
+        SELECT
           mes_examen_nombre,
           YEAR(fecha_examen_completa) AS anio,
           MONTH(fecha_examen_completa) AS mes,
@@ -137,7 +147,7 @@ export async function getClinicaData(
 
       // 4. Volumen vs Conversión por mes (Dentro del periodo seleccionado)
       req().query(`
-        SELECT 
+        SELECT
           mes_examen_nombre,
           YEAR(fecha_examen_completa) AS anio,
           MONTH(fecha_examen_completa) AS mes,
@@ -154,7 +164,7 @@ export async function getClinicaData(
 
       // 5. Distribución por Género
       req().query(`
-        SELECT 
+        SELECT
           ISNULL(dc.genero_label, 'Sin Definir') AS genero_label,
           ISNULL(COUNT(DISTINCT fe.id_examen), 0) AS total_examenes
         FROM dbo.Fact_Examenes fe
@@ -167,7 +177,7 @@ export async function getClinicaData(
 
       // 6. Rango de Edad
       req().query(`
-        SELECT 
+        SELECT
           ISNULL(dc.rango_edad_descripcion, 'Sin Definir') AS rango_edad_descripcion,
           ISNULL(COUNT(DISTINCT fe.id_examen), 0) AS total_examenes
         FROM dbo.Fact_Examenes fe
@@ -179,7 +189,7 @@ export async function getClinicaData(
 
       // 7. Top Sucursales
       req().query(`
-        SELECT 
+        SELECT
           ds.nombre_sucursal,
           ISNULL(COUNT(DISTINCT fe.id_examen), 0) AS total_examenes
         FROM dbo.Fact_Examenes fe
@@ -191,19 +201,19 @@ export async function getClinicaData(
       `),
     ]);
 
-    const stats = periodoStatsRes.recordset[0] || { total_examenes: 0, convertidos: 0, no_convertidos: 0, promedio_diario: 0 };
+    const stats = (periodoStatsRes.recordset as PeriodoStatsRow[])[0]
+      ?? { total_examenes: 0, convertidos: 0, no_convertidos: 0, promedio_diario: 0 };
     const totalExamenes = Number(stats.total_examenes ?? 0);
-    const convertidos = Number(stats.convertidos ?? 0);
+    const convertidos   = Number(stats.convertidos ?? 0);
     const pctConversion = totalExamenes > 0 ? Math.round((convertidos / totalExamenes) * 10000) / 100 : 0;
 
     // Procesar y ordenar edades
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rawEdades = edadRes.recordset.map((r: any) => {
+    const rawEdades = (edadRes.recordset as EdadRow[]).map((r) => {
       const desc = String(r.rango_edad_descripcion ?? "Sin Definir");
       return {
         rango_edad_descripcion: desc,
-        min_edad: extractMinAge(desc),
-        total_examenes: Number(r.total_examenes ?? 0),
+        min_edad:               extractMinAge(desc),
+        total_examenes:         Number(r.total_examenes ?? 0),
       };
     });
     // Ordenar lógicamente por edad mínima
@@ -213,41 +223,36 @@ export async function getClinicaData(
       success: true,
       data: {
         kpis: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          examenesHoy: Number((examenesHoyRes.recordset[0] as any)?.valor ?? 0),
+          examenesHoy:    Number((examenesHoyRes.recordset as ValorRow[])[0]?.valor ?? 0),
           totalExamenes,
           pctConversion,
           promedioDiario: Math.round(Number(stats.promedio_diario ?? 0) * 100) / 100,
           convertidos,
-          noConvertidos: Number(stats.no_convertidos ?? 0),
+          noConvertidos:  Number(stats.no_convertidos ?? 0),
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        tendencia: tendenciaRes.recordset.map((r: any) => ({
+        tendencia: (tendenciaRes.recordset as TendenciaRow[]).map((r) => ({
           mes_examen_nombre: String(r.mes_examen_nombre ?? ""),
-          total_examenes: Number(r.total_examenes ?? 0),
+          total_examenes:    Number(r.total_examenes ?? 0),
         })),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        volumenConversion: volumenConversionRes.recordset.map((r: any) => {
+        volumenConversion: (volumenConversionRes.recordset as VolumenConvRow[]).map((r) => {
           const mTotal = Number(r.total_mes ?? 0);
-          const mConv = Number(r.convertidos ?? 0);
-          const mPct = mTotal > 0 ? Math.round((mConv / mTotal) * 10000) / 100 : 0;
+          const mConv  = Number(r.convertidos ?? 0);
+          const mPct   = mTotal > 0 ? Math.round((mConv / mTotal) * 10000) / 100 : 0;
           return {
             mes_examen_nombre: String(r.mes_examen_nombre ?? ""),
-            convertidos: mConv,
-            no_convertidos: Number(r.no_convertidos ?? 0),
-            pct_conversion: mPct,
+            convertidos:       mConv,
+            no_convertidos:    Number(r.no_convertidos ?? 0),
+            pct_conversion:    mPct,
           };
         }),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        genero: generoRes.recordset.map((r: any) => ({
-          genero_label: String(r.genero_label ?? ""),
+        genero: (generoRes.recordset as GeneroRow[]).map((r) => ({
+          genero_label:   String(r.genero_label ?? ""),
           total_examenes: Number(r.total_examenes ?? 0),
         })),
         edad: sortedEdades,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        topSucursales: topSucursalesRes.recordset.map((r: any) => ({
+        topSucursales: (topSucursalesRes.recordset as SucursalRow[]).map((r) => ({
           nombre_sucursal: String(r.nombre_sucursal ?? ""),
-          total_examenes: Number(r.total_examenes ?? 0),
+          total_examenes:  Number(r.total_examenes ?? 0),
         })),
       },
     };

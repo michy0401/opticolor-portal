@@ -90,11 +90,13 @@ export default async function CarteraPage({
         <KpiCard
           title="% Primer Abono"
           value={`${kpis.pctCobroInmediato.toFixed(1)}%`}
+          fullValue={`${kpis.pctCobroInmediato.toFixed(2)}%`}
           iconName="percent"
         />
         <KpiCard
           title="% Pago Total"
           value={`${kpis.pctNivelAbono.toFixed(1)}%`}
+          fullValue={`${kpis.pctNivelAbono.toFixed(2)}%`}
           iconName="percent"
         />
       </div>

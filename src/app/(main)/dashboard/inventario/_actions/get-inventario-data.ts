@@ -41,6 +41,14 @@ type Params = {
   grupoFilter: string | null;
 };
 
+// ─── Tipos de fila DB (privados) ─────────────────────────────────────────────
+
+type InventarioRow = { stockFisico: number; capitalInvertido: number };
+type ValorRow      = { valor: number };
+type MarcaVentaRow = { marca: string; unidadesVendidas: number; ventaNeta: number };
+type MarcaStockRow = { marca: string; stockFisico: number };
+type GrupoRow      = { grupo: string; ventaNeta: number };
+
 // ─── Constantes ───────────────────────────────────────────────────────────────
 // Dim_Productos usa PascalCase: Marca, Segmento_Comercial
 const EXCLUSION = `AND dp.Segmento_Comercial NOT IN ('LENTES', 'TRATAMIENTOS')`;
@@ -172,20 +180,17 @@ export async function getInventarioData(
     ]);
 
     // ── KPI de snapshot ──────────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const invRow = inventarioRes.recordset[0] as any;
+    const invRow = (inventarioRes.recordset as InventarioRow[])[0];
 
     // ── Join per-marca en TypeScript ─────────────────────────────────────────
     const stockByMarca = new Map(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      marcasStockRes.recordset.map((r: any) => [
+      (marcasStockRes.recordset as MarcaStockRow[]).map((r) => [
         String(r.marca ?? ""),
         Number(r.stockFisico ?? 0),
       ]),
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const marcasDetalle: MarcaItem[] = marcasVentasRes.recordset.map((r: any) => ({
+    const marcasDetalle: MarcaItem[] = (marcasVentasRes.recordset as MarcaVentaRow[]).map((r) => ({
       marca:            String(r.marca ?? ""),
       unidadesVendidas: Number(r.unidadesVendidas ?? 0),
       stockFisico:      stockByMarca.get(String(r.marca ?? "")) ?? 0,
@@ -197,8 +202,7 @@ export async function getInventarioData(
     const ventaNetaTotal = marcasDetalle.reduce((acc, m) => acc + m.ventaNeta, 0);
 
     // ── Porcentajes de grupo ──────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rawGrupos = gruposRes.recordset.map((r: any) => ({
+    const rawGrupos = (gruposRes.recordset as GrupoRow[]).map((r) => ({
       grupo:     String(r.grupo ?? ""),
       ventaNeta: Number(r.ventaNeta ?? 0),
     }));
@@ -217,8 +221,7 @@ export async function getInventarioData(
           capitalInvertido:  Number(invRow?.capitalInvertido  ?? 0),
           unidadesVendidas:  unidadesTotal,
           ventaNetaProducto: ventaNetaTotal,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          cantidadFacturas:  Number((facturasRes.recordset[0] as any)?.valor ?? 0),
+          cantidadFacturas:  Number((facturasRes.recordset as ValorRow[])[0]?.valor ?? 0),
         },
         marcasDetalle,
         gruposMix,

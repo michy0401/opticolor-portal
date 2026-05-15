@@ -50,6 +50,15 @@ type Params = {
   sucursalId: number | null;
 };
 
+// ─── Tipos de fila DB (privados) ─────────────────────────────────────────────
+
+type VentasKpiRow       = { anio: number; mes_nro: number; ventaMensual: number; trafico: number; ventaNeta: number; ventaNetaYTD: number };
+type ProyeccionRow      = { kpi: string; valor: number };
+type ValorRow           = { valor: number };
+type PedidosClientesRow = { cantidadPedidos: number; clientesNuevos: number };
+type TopSucursalRow     = { idSucursal: number; nombreSucursal: string; ventaNeta: number; estimadoCierre: number };
+type MedioPagoRow       = { medioPago: string; monto: number };
+
 // ─── Acción principal ─────────────────────────────────────────────────────────
 
 export async function getResumenData(
@@ -89,10 +98,12 @@ export async function getResumenData(
         .input("userId", userId)
         .input("isSupervisor", isSupervisor ? 1 : 0);
 
-    // ── 8 consultas en paralelo (reducidas desde 11) ─────────────────────────
+    // ── 7 consultas en paralelo (reducidas desde 11) ─────────────────────────
     //
-    // Consolidación A: ventaNeta + ventaNetaYTD → ventasKpisRes
-    //   Mismo scan de KPI_Inf1_Venta_Neta, dos SUM(CASE WHEN ...) condicionales.
+    // Consolidación A: ventaNeta + ventaNetaYTD + gráfico mensual → ventasKpisRes
+    //   Un solo scan de KPI_Inf1_Venta_Neta devuelve filas mensuales (para el
+    //   gráfico YTD) con los escalares KPI embebidos vía window functions.
+    //   Elimina el round-trip previo a Fact_Ventas_Analitico (JOIN de 4 tablas).
     // Consolidación B: cantidadPedidos + clientesNuevos → pedidosClientesRes
     //   Mismo scan de Fact_Pedidos, dos columnas calculadas.
     // Consolidación C: proyeccion + cobrado → proyeccionCobradoRes
@@ -105,20 +116,28 @@ export async function getResumenData(
       ticketRes,
       pedidosClientesRes,
       examenesRes,
-      ventasDiariasRes,
       topSucursalesRes,
       mediosPagoRes,
     ] = await Promise.all([
 
-      // [A] KPI: Venta Neta filtrada + Venta Neta YTD — un solo scan
+      // [A] KPI + Gráfico YTD: filas mensuales con escalares globales embebidos.
+      // ventaMensual/trafico → datos del gráfico (una fila por mes).
+      // ventaNeta/ventaNetaYTD → mismo valor en cada fila (SUM(SUM()) OVER ()).
       req().query(`
         SELECT
-          ISNULL(SUM(CASE WHEN fecha_factura BETWEEN @startDate AND @endDate THEN monto_neto END), 0) AS ventaNeta,
-          ISNULL(SUM(CASE WHEN fecha_factura BETWEEN @ytdStart  AND @ytdEnd  THEN monto_neto END), 0) AS ventaNetaYTD
+          anio_factura                                                                  AS anio,
+          mes_factura_nro                                                               AS mes_nro,
+          ISNULL(SUM(monto_neto), 0)                                                   AS ventaMensual,
+          COUNT(*)                                                                       AS trafico,
+          ISNULL(SUM(SUM(CASE WHEN fecha_factura BETWEEN @startDate AND @endDate
+                          THEN monto_neto ELSE 0 END)) OVER (), 0)                      AS ventaNeta,
+          ISNULL(SUM(SUM(monto_neto)) OVER (), 0)                                       AS ventaNetaYTD
         FROM dbo.KPI_Inf1_Venta_Neta
         WHERE (fecha_factura BETWEEN @startDate AND @endDate
             OR fecha_factura BETWEEN @ytdStart  AND @ytdEnd)
         ${buildSucursalFilter()}
+        GROUP BY anio_factura, mes_factura_nro
+        ORDER BY anio_factura, mes_factura_nro ASC
       `),
 
       // [C] KPI: Proyección + Total Cobrado — UNION ALL con discriminador
@@ -185,20 +204,6 @@ export async function getResumenData(
         ${buildSucursalFilter()}
       `),
 
-      // Gráfico: Tendencia anual — siempre YTD para mostrar estacionalidad completa
-      req().query(`
-        SELECT
-          YEAR(fecha_factura)                        AS anio,
-          MONTH(fecha_factura)                       AS mes_nro,
-          ISNULL(SUM(monto_final_transaccional), 0)  AS ventaNeta,
-          COUNT(*)                                   AS trafico
-        FROM dbo.Fact_Ventas_Analitico
-        WHERE fecha_factura BETWEEN @ytdStart AND @ytdEnd
-          ${buildSucursalFilter()}
-        GROUP BY YEAR(fecha_factura), MONTH(fecha_factura)
-        ORDER BY YEAR(fecha_factura), MONTH(fecha_factura) ASC
-      `),
-
       // Gráfico: Top 10 sucursales — proyección usa la misma fórmula proporcional
       req().query(`
         SELECT TOP 10
@@ -246,20 +251,17 @@ export async function getResumenData(
     ]);
 
     // ── Extracción de resultados consolidados ────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ventasRow = ventasKpisRes.recordset[0] as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pcRows    = proyeccionCobradoRes.recordset as any[];
-    const proyRow   = pcRows.find((r) => r.kpi === "proyeccion");
-    const cobRow    = pcRows.find((r) => r.kpi === "cobrado");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pedidosRow = pedidosClientesRes.recordset[0] as any;
+    const ventasRows = ventasKpisRes.recordset as VentasKpiRow[];
+    const ventasRow  = ventasRows[0];
+    const pcRows     = proyeccionCobradoRes.recordset as ProyeccionRow[];
+    const proyRow    = pcRows.find((r) => r.kpi === "proyeccion");
+    const cobRow     = pcRows.find((r) => r.kpi === "cobrado");
+    const pedidosRow = pedidosClientesRes.recordset[0] as PedidosClientesRow;
 
-    // ── Porcentajes con 1 decimal ────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rawMedios: Array<{ medioPago: string; monto: number }> = mediosPagoRes.recordset.map((r: any) => ({
+    // ── Porcentajes con 2 decimales ──────────────────────────────────────────
+    const rawMedios = (mediosPagoRes.recordset as MedioPagoRow[]).map((r) => ({
       medioPago: r.medioPago ?? "",
-      monto: Number(r.monto ?? 0),
+      monto:     Number(r.monto ?? 0),
     }));
     const montoTotal = rawMedios.reduce((acc, r) => acc + r.monto, 0);
     const mediosPago: MedioPago[] = rawMedios.map((r) => ({
@@ -276,26 +278,22 @@ export async function getResumenData(
           ventaNeta:       Number(ventasRow?.ventaNeta       ?? 0),
           proyeccion:      Number(proyRow?.valor             ?? 0),
           totalCobrado:    Number(cobRow?.valor              ?? 0),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ticketPromedio:  Math.round(Number((ticketRes.recordset[0] as any)?.valor ?? 0) * 100) / 100,
+          ticketPromedio:  Math.round(Number((ticketRes.recordset as ValorRow[])[0]?.valor ?? 0) * 100) / 100,
           cantidadPedidos: Number(pedidosRow?.cantidadPedidos ?? 0),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          totalExamenes:   Number((examenesRes.recordset[0] as any)?.valor ?? 0),
+          totalExamenes:   Number((examenesRes.recordset as ValorRow[])[0]?.valor ?? 0),
           clientesNuevos:  Number(pedidosRow?.clientesNuevos  ?? 0),
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ventasDiarias: ventasDiariasRes.recordset.map((r: any) => {
+        ventasDiarias: ventasRows.map((r) => {
           const mesNum = Number(r.mes_nro ?? 1);
           const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
           return {
             fecha:     `${r.anio}-${String(mesNum).padStart(2, "0")}`,
             label:     MESES[mesNum - 1] ?? String(mesNum),
-            ventaNeta: Number(r.ventaNeta ?? 0),
+            ventaNeta: Number(r.ventaMensual ?? 0),
             trafico:   Number(r.trafico ?? 0),
           };
         }),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        topSucursales: topSucursalesRes.recordset.map((r: any) => ({
+        topSucursales: (topSucursalesRes.recordset as TopSucursalRow[]).map((r) => ({
           idSucursal:     Number(r.idSucursal),
           nombreSucursal: String(r.nombreSucursal ?? ""),
           ventaNeta:      Number(r.ventaNeta ?? 0),

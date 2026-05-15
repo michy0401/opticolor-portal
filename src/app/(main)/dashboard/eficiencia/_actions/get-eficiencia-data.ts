@@ -42,6 +42,14 @@ type Params = {
   sucursalId: number | null;
 };
 
+// ─── Tipos de fila DB (privados) ─────────────────────────────────────────────
+
+type ValorRow        = { valor: number };
+type PeriodoStatsRow = { volumen_ordenes: number; monto_total: number; promedio_ordenes_diarias: number };
+type TendenciaRow    = { mes_nombre: string; volumen_ordenes: number };
+type TipoLenteRow    = { tipo_lente_descripcion: string; volumen_ordenes: number; monto_total: number };
+type SucursalRow     = { nombre_sucursal: string; volumen_ordenes: number };
+
 // ─── Acción principal ─────────────────────────────────────────────────────────
 
 export async function getEficienciaData(
@@ -82,12 +90,12 @@ export async function getEficienciaData(
 
       // 2. Volumen y KPIs de todo el periodo
       req().query(`
-        SELECT 
+        SELECT
           ISNULL(COUNT(id_pedido), 0) AS volumen_ordenes,
           ISNULL(SUM(monto_total), 0) AS monto_total,
-          CASE WHEN COUNT(DISTINCT CAST(fecha_pedido AS DATE)) = 0 
-               THEN 0 
-               ELSE CAST(COUNT(id_pedido) AS FLOAT) / COUNT(DISTINCT CAST(fecha_pedido AS DATE)) 
+          CASE WHEN COUNT(DISTINCT CAST(fecha_pedido AS DATE)) = 0
+               THEN 0
+               ELSE CAST(COUNT(id_pedido) AS FLOAT) / COUNT(DISTINCT CAST(fecha_pedido AS DATE))
           END AS promedio_ordenes_diarias
         FROM dbo.Fact_Eficiencia_Ordenes
         WHERE CAST(fecha_pedido AS DATE) BETWEEN @startDate AND @endDate
@@ -96,7 +104,7 @@ export async function getEficienciaData(
 
       // 3. Tendencia (Últimos 12 meses respecto a endDate)
       req().query(`
-        SELECT 
+        SELECT
           mes_nombre,
           YEAR(fecha_pedido) AS anio,
           MONTH(fecha_pedido) AS mes,
@@ -111,7 +119,7 @@ export async function getEficienciaData(
 
       // 4. Detalle por Tipo Lente (Para Chart y Tabla)
       req().query(`
-        SELECT 
+        SELECT
           ISNULL(tipo_lente_descripcion, 'Sin Definir') AS tipo_lente_descripcion,
           ISNULL(COUNT(id_pedido), 0) AS volumen_ordenes,
           ISNULL(SUM(monto_total), 0) AS monto_total
@@ -124,7 +132,7 @@ export async function getEficienciaData(
 
       // 5. Órdenes por Sucursal (Para BarChart Horizontal)
       req().query(`
-        SELECT 
+        SELECT
           ds.nombre_sucursal,
           ISNULL(COUNT(f.id_pedido), 0) AS volumen_ordenes
         FROM dbo.Fact_Eficiencia_Ordenes f
@@ -136,31 +144,28 @@ export async function getEficienciaData(
       `),
     ]);
 
-    const stats = periodoStatsRes.recordset[0] || { volumen_ordenes: 0, promedio_ordenes_diarias: 0, monto_total: 0 };
+    const stats = (periodoStatsRes.recordset as PeriodoStatsRow[])[0]
+      ?? { volumen_ordenes: 0, promedio_ordenes_diarias: 0, monto_total: 0 };
 
     return {
       success: true,
       data: {
         kpis: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ordenesHoy: Number((ordenesHoyRes.recordset[0] as any)?.valor ?? 0),
+          ordenesHoy:     Number((ordenesHoyRes.recordset as ValorRow[])[0]?.valor ?? 0),
           volumenOrdenes: Number(stats.volumen_ordenes ?? 0),
           promedioDiario: Math.round(Number(stats.promedio_ordenes_diarias ?? 0) * 100) / 100,
-          montoTotal: Math.round(Number(stats.monto_total ?? 0) * 100) / 100,
+          montoTotal:     Math.round(Number(stats.monto_total ?? 0) * 100) / 100,
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        tendencia: tendenciaRes.recordset.map((r: any) => ({
-          mes_nombre: String(r.mes_nombre ?? ""),
+        tendencia: (tendenciaRes.recordset as TendenciaRow[]).map((r) => ({
+          mes_nombre:      String(r.mes_nombre ?? ""),
           volumen_ordenes: Number(r.volumen_ordenes ?? 0),
         })),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        tipoLente: tipoLenteRes.recordset.map((r: any) => ({
+        tipoLente: (tipoLenteRes.recordset as TipoLenteRow[]).map((r) => ({
           tipo_lente_descripcion: String(r.tipo_lente_descripcion ?? ""),
-          volumen_ordenes: Number(r.volumen_ordenes ?? 0),
-          monto_total: Number(r.monto_total ?? 0),
+          volumen_ordenes:        Number(r.volumen_ordenes ?? 0),
+          monto_total:            Number(r.monto_total ?? 0),
         })),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ordenesSucursal: ordenesSucursalRes.recordset.map((r: any) => ({
+        ordenesSucursal: (ordenesSucursalRes.recordset as SucursalRow[]).map((r) => ({
           nombre_sucursal: String(r.nombre_sucursal ?? ""),
           volumen_ordenes: Number(r.volumen_ordenes ?? 0),
         })),

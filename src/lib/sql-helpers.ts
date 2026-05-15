@@ -12,7 +12,13 @@ export function buildSucursalFilter(tableAlias = ""): string {
       )
       OR (
         @isSupervisor = 0
-        AND (@sucursalId IS NULL OR ${col} = @sucursalId)
+        AND ${col} IN (
+          SELECT id_sucursal
+          FROM dbo.Seguridad_Usuarios_Sucursales
+          WHERE id_usuario = @userId
+            AND esta_vigente = 1
+            AND (@sucursalId IS NULL OR id_sucursal = @sucursalId)
+        )
       )
     )`;
 }

@@ -54,6 +54,14 @@ type Params = {
   sucursalId: number | null;
 };
 
+// ─── Tipos de fila DB (privados) ─────────────────────────────────────────────
+
+type ValorRow         = { valor: number };
+type GapCobroRow      = { mes_pedido_nombre: string; monto_total: number; saldo_pendiente: number };
+type MixVentaRow      = { categoria_agrupada: string; venta_neta: number; facturas: number };
+type CarteraSucRow    = { nombre_sucursal: string; saldo_pendiente: number };
+type ClienteDeudorRow = { nombre_sucursal: string; nombre_completo: string; monto_total: number; monto_pagado: number; saldo_pendiente: number };
+
 // ─── Acción principal ─────────────────────────────────────────────────────────
 
 export async function getCarteraData(
@@ -155,7 +163,7 @@ export async function getCarteraData(
 
       // 7. GAP de Cobro (Tendencia - Últimos 12 meses)
       req().query(`
-        SELECT 
+        SELECT
           mes_pedido_nombre,
           YEAR(fecha_pedido_completa) AS anio,
           MONTH(fecha_pedido_completa) AS mes,
@@ -171,7 +179,7 @@ export async function getCarteraData(
 
       // 8. Mix de Ventas
       req().query(`
-        SELECT 
+        SELECT
           categoria_agrupada,
           ISNULL(SUM(venta_neta), 0) AS venta_neta,
           COUNT(DISTINCT id_factura) AS facturas
@@ -184,7 +192,7 @@ export async function getCarteraData(
 
       // 9. Cartera por Sucursal (Snapshot histórico)
       req().query(`
-        SELECT 
+        SELECT
           ds.nombre_sucursal,
           ROUND(COALESCE(SUM(k.saldo_pendiente), 0), 2) AS saldo_pendiente
         FROM dbo.KPI_Inf3_Saldo_Pendiente k
@@ -218,42 +226,32 @@ export async function getCarteraData(
       success: true,
       data: {
         kpis: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          montoPedidos: Number((montoPedidosRes.recordset[0] as any)?.valor ?? 0),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          recaudado: Number((recaudadoRes.recordset[0] as any)?.valor ?? 0),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          saldoPendiente: Number((saldoPendienteRes.recordset[0] as any)?.valor ?? 0),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          pedidosLiquidar: Number((pedidosLiquidarRes.recordset[0] as any)?.valor ?? 0),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          pctCobroInmediato: Math.round(Number((pctCobroInmediatoRes.recordset[0] as any)?.valor ?? 0) * 100) / 100,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          pctNivelAbono: Math.round(Number((pctNivelAbonoRes.recordset[0] as any)?.valor ?? 0) * 100) / 100,
+          montoPedidos:      Number((montoPedidosRes.recordset    as ValorRow[])[0]?.valor ?? 0),
+          recaudado:         Number((recaudadoRes.recordset        as ValorRow[])[0]?.valor ?? 0),
+          saldoPendiente:    Number((saldoPendienteRes.recordset   as ValorRow[])[0]?.valor ?? 0),
+          pedidosLiquidar:   Number((pedidosLiquidarRes.recordset  as ValorRow[])[0]?.valor ?? 0),
+          pctCobroInmediato: Math.round(Number((pctCobroInmediatoRes.recordset as ValorRow[])[0]?.valor ?? 0) * 100) / 100,
+          pctNivelAbono:     Math.round(Number((pctNivelAbonoRes.recordset     as ValorRow[])[0]?.valor ?? 0) * 100) / 100,
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        gapCobro: gapCobroRes.recordset.map((r: any) => ({
+        gapCobro: (gapCobroRes.recordset as GapCobroRow[]).map((r) => ({
           mes_pedido_nombre: String(r.mes_pedido_nombre ?? ""),
-          monto_total: Number(r.monto_total ?? 0),
-          saldo_pendiente: Number(r.saldo_pendiente ?? 0),
+          monto_total:       Number(r.monto_total ?? 0),
+          saldo_pendiente:   Number(r.saldo_pendiente ?? 0),
         })),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mixVentas: mixVentasRes.recordset.map((r: any) => ({
+        mixVentas: (mixVentasRes.recordset as MixVentaRow[]).map((r) => ({
           categoria_agrupada: String(r.categoria_agrupada ?? ""),
-          venta_neta: Number(r.venta_neta ?? 0),
-          facturas: Number(r.facturas ?? 0),
+          venta_neta:         Number(r.venta_neta ?? 0),
+          facturas:           Number(r.facturas ?? 0),
         })),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        carteraSucursal: carteraSucursalRes.recordset.map((r: any) => ({
+        carteraSucursal: (carteraSucursalRes.recordset as CarteraSucRow[]).map((r) => ({
           nombre_sucursal: String(r.nombre_sucursal ?? ""),
           saldo_pendiente: Number(r.saldo_pendiente ?? 0),
         })),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        clientesDeudores: clientesDeudoresRes.recordset.map((r: any) => ({
+        clientesDeudores: (clientesDeudoresRes.recordset as ClienteDeudorRow[]).map((r) => ({
           nombre_sucursal: String(r.nombre_sucursal ?? ""),
           nombre_completo: String(r.nombre_completo ?? ""),
-          monto_total: Number(r.monto_total ?? 0),
-          monto_pagado: Number(r.monto_pagado ?? 0),
+          monto_total:     Number(r.monto_total ?? 0),
+          monto_pagado:    Number(r.monto_pagado ?? 0),
           saldo_pendiente: Number(r.saldo_pendiente ?? 0),
         })),
       },
